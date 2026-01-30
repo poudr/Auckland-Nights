@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import { Link } from "wouter";
 import heroImg from "@/assets/hero-auckland.png";
 
 export default function Home() {
@@ -30,9 +31,9 @@ export default function Home() {
           </div>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
-            <a href="#" className="hover:text-primary transition-colors">RULES</a>
-            <a href="#" className="hover:text-primary transition-colors">MAP</a>
-            <a href="#" className="hover:text-primary transition-colors">STAFF</a>
+            <Link href="/join" className="hover:text-primary transition-colors cursor-pointer">HOW TO JOIN</Link>
+            <Link href="/staff" className="hover:text-primary transition-colors cursor-pointer">STAFF</Link>
+            <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
             <a href="#" className="hover:text-primary transition-colors">DONATE</a>
           </div>
 
@@ -84,9 +85,11 @@ export default function Home() {
               Experience the most authentic NZ roleplay. From the CBD to the suburbs, write your story in the streets of Tamaki Makaurau.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Button size="lg" className="h-14 px-8 text-lg font-bold orange-glow" data-testid="button-join-server">
-                PLAY NOW
-              </Button>
+              <Link href="/join">
+                <Button size="lg" className="h-14 px-8 text-lg font-bold orange-glow" data-testid="button-join-server">
+                  PLAY NOW
+                </Button>
+              </Link>
               <Button size="lg" variant="secondary" className="h-14 px-8 text-lg font-bold" data-testid="button-rules">
                 VIEW RULES
               </Button>
@@ -132,7 +135,7 @@ export default function Home() {
                 </div>
 
                 <div className="mt-8">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Synced MessageSquareDiff Roles</h3>
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Synced Discord Roles</h3>
                   <div className="flex flex-wrap gap-2">
                     {mockRoles.map((role) => (
                       <Badge key={role.name} className={`${role.color} border-none`}>
@@ -210,7 +213,7 @@ export default function Home() {
               <DiscordIcon size={48} className="mx-auto mb-6 text-primary" />
               <h3 className="text-2xl font-bold mb-4">Start Your Journey</h3>
               <p className="text-muted-foreground text-sm mb-8">
-                Connect your MessageSquareDiff to sync your server roles and create your character profile automatically.
+                Connect your Discord to sync your server roles and create your character profile automatically.
               </p>
               <Button 
                 className="w-full h-12 font-bold bg-primary hover:bg-primary/90 text-black" 
