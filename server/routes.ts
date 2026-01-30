@@ -149,7 +149,7 @@ export async function registerRoutes(
 
   // Check if user has specific roles (for department access)
   app.get("/api/user/check-access/:department", isAuthenticated, (req, res) => {
-    const { department } = req.params;
+    const department = req.params.department as string;
     const userRoles = req.user?.roles || [];
     
     // Map departments to required role IDs (these would be configured)

@@ -1,62 +1,20 @@
 import { motion } from "framer-motion";
-import { Users, Shield, MapPin, MessageSquareDiff as DiscordIcon, Terminal, User } from "lucide-react";
+import { Users, Shield, MapPin, MessageSquareDiff as DiscordIcon, Terminal, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
 import { Link } from "wouter";
+import Navbar from "@/components/Navbar";
+import { useUser, useSyncRoles, getAvatarUrl, loginWithDiscord } from "@/lib/auth";
 import heroImg from "@/assets/hero-auckland.png";
 
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  // Mock roles for the demo
-  const mockRoles = [
-    { name: "Server Whitelisted", color: "bg-orange-500" },
-    { name: "Police Department", color: "bg-blue-600" },
-    { name: "Auckland Resident", color: "bg-zinc-700" },
-    { name: "OG Member", color: "bg-purple-600" }
-  ];
+  const { data: user, isLoading } = useUser();
+  const syncRolesMutation = useSyncRoles();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-background/80 backdrop-blur-md px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center font-display font-bold text-xl text-black">
-              TM
-            </div>
-            <span className="font-display font-bold text-xl tracking-tighter">TAMAKI MAKAURAU RP</span>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
-            <Link href="/join" className="hover:text-primary transition-colors cursor-pointer">HOW TO JOIN</Link>
-            <Link href="/staff" className="hover:text-primary transition-colors cursor-pointer">STAFF</Link>
-            <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
-            <a href="#" className="hover:text-primary transition-colors">DONATE</a>
-          </div>
-
-          <Button 
-            variant={isLoggedIn ? "outline" : "default"}
-            onClick={() => setIsLoggedIn(!isLoggedIn)}
-            className="gap-2"
-            data-testid="button-discord-login"
-          >
-            {isLoggedIn ? (
-              <>
-                <User size={18} />
-                PROFILE
-              </>
-            ) : (
-              <>
-                <Shield size={18} />
-                CONNECT DISCORD
-              </>
-            )}
-          </Button>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Hero Section */}
       <section className="relative h-[90vh] flex items-center justify-center overflow-hidden">
@@ -100,7 +58,7 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-24">
-        {isLoggedIn ? (
+        {user ? (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -110,38 +68,55 @@ export default function Home() {
             <Card className="md:col-span-1 bg-zinc-900/50 border-white/5 overflow-hidden">
               <div className="h-24 bg-primary/20 relative">
                 <div className="absolute -bottom-10 left-6">
-                  <div className="w-20 h-20 rounded-xl bg-zinc-800 border-4 border-zinc-900 p-1">
-                    <div className="w-full h-full rounded-lg bg-primary flex items-center justify-center text-black font-bold text-2xl">
-                      JD
-                    </div>
+                  <div className="w-20 h-20 rounded-xl bg-zinc-800 border-4 border-zinc-900 overflow-hidden">
+                    <img 
+                      src={getAvatarUrl(user)} 
+                      alt={user.username}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </div>
               </div>
               <CardContent className="pt-12 pb-6">
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold font-display">JohnDoe#1234</h2>
-                  <p className="text-muted-foreground text-sm">Citizen ID: #45920</p>
+                  <h2 className="text-2xl font-bold font-display">{user.username}</h2>
+                  <p className="text-muted-foreground text-sm">Discord ID: {user.discordId}</p>
                 </div>
                 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Status</span>
-                    <span className="text-green-500 font-medium">Online</span>
+                    <span className="text-green-500 font-medium">Connected</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Playtime</span>
-                    <span className="text-foreground">142 Hours</span>
+                    <span className="text-muted-foreground">Roles Synced</span>
+                    <span className="text-foreground">{user.roles?.length || 0} Roles</span>
                   </div>
                 </div>
 
                 <div className="mt-8">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Synced Discord Roles</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Synced Discord Roles</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => syncRolesMutation.mutate()}
+                      disabled={syncRolesMutation.isPending}
+                      className="h-6 px-2"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${syncRolesMutation.isPending ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {mockRoles.map((role) => (
-                      <Badge key={role.name} className={`${role.color} border-none`}>
-                        {role.name}
-                      </Badge>
-                    ))}
+                    {user.roles && user.roles.length > 0 ? (
+                      user.roles.map((roleId) => (
+                        <Badge key={roleId} className="bg-primary/20 text-primary border-none text-xs">
+                          Role: {roleId.slice(-6)}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No roles synced yet. Click refresh to sync from Discord.</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -217,10 +192,10 @@ export default function Home() {
               </p>
               <Button 
                 className="w-full h-12 font-bold bg-primary hover:bg-primary/90 text-black" 
-                onClick={() => setIsLoggedIn(true)}
+                onClick={loginWithDiscord}
                 data-testid="button-cta-discord"
               >
-                JOIN THE DISCORD
+                CONNECT DISCORD
               </Button>
             </Card>
           </div>
