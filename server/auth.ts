@@ -15,6 +15,9 @@ declare global {
       avatar: string | null;
       email: string | null;
       roles: string[] | null;
+      websiteRoles: string[] | null;
+      isStaff: boolean | null;
+      staffTier: string | null;
       accessToken: string | null;
       refreshToken: string | null;
       createdAt: Date | null;
@@ -158,5 +161,27 @@ export const hasRole = (roleIds: string[]): RequestHandler => {
       return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
     }
     next();
+  };
+};
+
+export const hasPermission = (permission: string): RequestHandler => {
+  return (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const websiteRoles = req.user?.websiteRoles || [];
+    const staffTier = req.user?.staffTier;
+    
+    // Directors and executives have full access
+    if (staffTier === "director" || staffTier === "executive") {
+      return next();
+    }
+    
+    // Check specific permission
+    if (websiteRoles.includes(permission) || websiteRoles.includes("admin")) {
+      return next();
+    }
+    
+    return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
   };
 };

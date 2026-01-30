@@ -1,0 +1,85 @@
+Project Title: Tamaki Makaurau RP (FiveM Server) Web Portal Context: I have already generated a Landing Page that I like. Please keep that code but build the rest of the application around it.
+
+Core Stack Requirement:
+
+Design: Dark/Black background, Dark Gray secondary elements, Vibrant Orange accents.
+
+Feature 1: Authentication & Discord Integration (CRITICAL)
+
+Implement "Log In with Discord" (OAuth2).
+
+Bi-Directional Role Sync:
+
+Login Sync: When a user logs in, fetch their roles from the Discord Guild and apply the corresponding permissions on the website.
+
+Bot Listeners: The system must include a Discord Bot that listens for role changes in the Discord server and updates the website database in real-time.
+
+Web-to-Discord: If a role is changed on the Website Admin Dashboard, the bot must apply that change to the user in the Discord server.
+
+Feature 2: Dynamic "Meet the Team" Page
+
+Automatically fetch and display users who hold specific staff roles.
+
+Display Hierarchy (Highest to Lowest): Director > Executive > Manager > Administrator > Moderator > Support > Development.
+
+Card Design: Display Discord Avatar, Name, and Role.
+
+Feature 3: Admin Dashboard (RBAC - Role Based Access Control)
+
+Access: Only visible to staff. Director/Executive have FULL read/write access to all settings.
+
+Capabilities:
+
+Manage Website Configuration (Discord Bot Tokens, Guild IDs, API keys).
+
+Role Mapping: A UI to map Discord Role IDs to Website Permissions.
+
+User Management: Edit users, force role sync, manually assign roles.
+
+Menu Management: Edit the visibility of pages in the top navigation bar.
+
+Sync Roles: Separate buttons. One that syncs roles FROM Discord TO Website. The other syncs roles TO Discord FROM the website.
+
+Feature 4: Department Portals
+
+Create a portal wrapper for four departments: Police, Fire, EMS, and Special Forces (AOS).
+
+Navigation: Top navigation bar (Hamburger menu on mobile).
+
+Each Department Portal must contain:
+
+Dynamic Roster:
+
+Display columns: Discord Name | Character Name | Callsign | Rank.
+
+Callsign Logic: Auto-assign callsigns based on rank using a "1 to Infinity" logic. If a user leaves or is given a higher rank, their callsign number becomes available for the next person.
+
+Hierarchy Sorting: Sort roster based on the specific ranks listed below.
+
+SOP Viewer: A page to view PDF documents with a sticky sidebar "Table of Contents" for jumping to specific sections.
+
+Application Forms: Placeholder forms for Roster Requests, Promotions, and Leadership apps.
+
+Leadership Settings: A restricted sub-dashboard for department heads (Commissioner, District Manager, etc.) to view applications and upload SOP documents.
+
+Data Hierarchies (For Database Seeding):
+
+POLICE Ranks (High to Low):
+
+Leadership: Commissioner, Deputy Commissioner, Assistant Commissioner, Superintendent (Executive), Superintendent (Non-Executive).
+
+Non-Leadership: Inspector, Senior Sergeant, Sergeant, Senior Constable, Constable, Recruit.
+
+FIRE Ranks (High to Low):
+
+Leadership: District Manager, Group Manager.
+
+Non-Leadership: Senior Station Officer, Station Officer, Senior Firefighter, Qualified Firefighter, Firefighter, Recruit.
+
+EMS Ranks (High to Low):
+
+Leadership: District Operations Officer, Group Operations Officer, Watch Operations Officer.
+
+Non-Leadership: Critical Care Paramedic, Intensive Care Paramedic, Paramedic, Emergency Medical Technician, First Responder.
+
+Action: Please set up the folder structure, database schema, authentication routes, and the frontend pages for the dashboard and department portals.

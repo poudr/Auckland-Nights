@@ -1,157 +1,169 @@
 import { motion } from "framer-motion";
-import { Shield, HeartPulse, Flame, Lock, Unlock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { useUser, loginWithDiscord } from "@/lib/auth";
+import { useUser, type User } from "@/lib/auth";
 
-async function checkAccess(department: string): Promise<{ hasAccess: boolean }> {
-  const res = await fetch(`/api/user/check-access/${department}`, { credentials: "include" });
-  if (!res.ok) return { hasAccess: false };
+interface Department {
+  id: string;
+  code: string;
+  name: string;
+  color: string;
+  icon: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+interface DepartmentsData {
+  departments: Department[];
+}
+
+const ICONS: Record<string, React.ReactNode> = {
+  Shield: <Shield className="w-8 h-8" />,
+  Flame: <Flame className="w-8 h-8" />,
+  HeartPulse: <HeartPulse className="w-8 h-8" />,
+  Target: <Target className="w-8 h-8" />,
+};
+
+async function fetchDepartments(): Promise<DepartmentsData> {
+  const res = await fetch("/api/departments");
+  if (!res.ok) throw new Error("Failed to fetch departments");
   return res.json();
 }
 
-interface DepartmentConfig {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  description: string;
-  color: string;
-  roles: string[];
-}
-
-const departments: DepartmentConfig[] = [
-  {
-    id: "police",
-    name: "Auckland Police Department",
-    icon: <Shield className="text-blue-500" />,
-    description: "Serving and protecting the citizens of Tamaki Makaurau.",
-    color: "border-blue-500/20 hover:border-blue-500/50",
-    roles: ["Police", "Command"]
-  },
-  {
-    id: "ems",
-    name: "St John Ambulance",
-    icon: <HeartPulse className="text-green-500" />,
-    description: "Providing world-class emergency medical care.",
-    color: "border-green-500/20 hover:border-green-500/50",
-    roles: ["EMS", "Medical"]
-  },
-  {
-    id: "fire",
-    name: "NZ Fire & Emergency",
-    icon: <Flame className="text-red-500" />,
-    description: "Emergency fire response and rescue operations.",
-    color: "border-red-500/20 hover:border-red-500/50",
-    roles: ["Fire", "Rescue"]
-  }
-];
-
-function DepartmentCard({ dept }: { dept: DepartmentConfig }) {
-  const { data: user } = useUser();
-  const { data: accessData } = useQuery({
-    queryKey: ["access", dept.id],
-    queryFn: () => checkAccess(dept.id),
-    enabled: !!user,
-  });
-
-  const hasAccess = accessData?.hasAccess ?? false;
-
-  return (
-    <Card className={`h-full bg-zinc-900/50 transition-all ${dept.color} relative overflow-hidden group`}>
-      <CardHeader>
-        <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-          {dept.icon}
-        </div>
-        <CardTitle className="text-2xl">{dept.name}</CardTitle>
-        <CardDescription className="text-muted-foreground/80">{dept.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex flex-wrap gap-2">
-          {dept.roles.map(r => (
-            <Badge key={r} variant="secondary" className="bg-white/5 border-white/5">
-              {r} Required
-            </Badge>
-          ))}
-        </div>
-        
-        <div className="pt-4 space-y-3">
-          {!user ? (
-            <>
-              <Button 
-                className="w-full gap-2" 
-                onClick={loginWithDiscord}
-              >
-                <Lock size={16} /> LOGIN TO ACCESS
-              </Button>
-              <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest">
-                Connect Discord to check access
-              </p>
-            </>
-          ) : hasAccess ? (
-            <>
-              <Button className="w-full gap-2 bg-primary text-black hover:bg-primary/90">
-                <Unlock size={16} /> ENTER PORTAL
-              </Button>
-              <p className="text-[10px] text-center text-green-500 uppercase tracking-widest">
-                Access Granted
-              </p>
-            </>
-          ) : (
-            <>
-              <Button className="w-full gap-2 border-white/10" variant="outline" disabled>
-                <Lock size={16} /> ENTER PORTAL
-              </Button>
-              <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest">
-                Access Restricted to Personnel
-              </p>
-            </>
-          )}
-        </div>
-      </CardContent>
-      
-      {/* Decorative background icon */}
-      <div className="absolute -bottom-10 -right-10 opacity-5 group-hover:opacity-10 transition-opacity scale-[4]">
-        {dept.icon}
-      </div>
-    </Card>
-  );
+async function checkAccess(code: string): Promise<boolean> {
+  const res = await fetch(`/api/user/check-access/${code}`, { credentials: "include" });
+  if (!res.ok) return false;
+  const data = await res.json();
+  return data.hasAccess;
 }
 
 export default function Departments() {
+  const { data: user } = useUser();
+  const { data, isLoading } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
       <div className="pt-24 px-6 pb-12">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <header className="text-center mb-16">
             <motion.h1 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-5xl font-black gta-text-shadow mb-4"
             >
-              PUBLIC <span className="text-primary">SERVICES</span>
+              <span className="text-primary">DEPARTMENT</span> PORTALS
             </motion.h1>
-            <p className="text-muted-foreground text-lg">Official portals for our whitelisted departments.</p>
+            <p className="text-muted-foreground text-lg">Access your department's roster, SOPs, and resources.</p>
+            {!user && (
+              <Badge variant="outline" className="mt-4 border-yellow-500/30 text-yellow-500">
+                <Lock className="w-3 h-3 mr-1" /> Login required to access department portals
+              </Badge>
+            )}
           </header>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {departments.map((dept, idx) => (
-              <motion.div
-                key={dept.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: idx * 0.1 }}
-              >
-                <DepartmentCard dept={dept} />
-              </motion.div>
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid sm:grid-cols-2 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-48 rounded-lg" />
+              ))}
+            </div>
+          ) : data ? (
+            <div className="grid sm:grid-cols-2 gap-6">
+              {data.departments.filter(d => d.isActive).map((dept, idx) => (
+                <motion.div
+                  key={dept.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                >
+                  <DepartmentCard department={dept} user={user ?? null} />
+                </motion.div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
+  );
+}
+
+function DepartmentCard({ department, user }: { department: Department; user: User | null }) {
+  const { data: hasAccess } = useQuery({
+    queryKey: ["departmentAccess", department.code],
+    queryFn: () => checkAccess(department.code),
+    enabled: !!user,
+  });
+
+  const icon = ICONS[department.icon] || <Shield className="w-8 h-8" />;
+
+  return (
+    <Card 
+      className="bg-zinc-900/40 border-white/5 hover:border-white/10 transition-all h-full overflow-hidden group"
+      style={{ borderColor: hasAccess ? `${department.color}40` : undefined }}
+    >
+      <CardHeader className="flex flex-row items-start gap-4">
+        <div 
+          className="p-3 rounded-lg"
+          style={{ backgroundColor: `${department.color}20`, color: department.color }}
+        >
+          {icon}
+        </div>
+        <div className="flex-1">
+          <CardTitle className="flex items-center justify-between">
+            <span>{department.name}</span>
+            {hasAccess && (
+              <Badge style={{ backgroundColor: department.color, color: "black" }} className="text-xs">
+                Access Granted
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription className="mt-1">
+            {department.description || "No description available."}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {user ? (
+          hasAccess ? (
+            <Link href={`/departments/${department.code}`}>
+              <Button 
+                className="w-full group-hover:bg-primary/90 transition-colors"
+                style={{ backgroundColor: department.color, color: "black" }}
+                data-testid={`button-open-${department.code}`}
+              >
+                Open Portal <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          ) : (
+            <Button 
+              variant="outline" 
+              className="w-full border-white/10 text-muted-foreground"
+              disabled
+            >
+              <Lock className="w-4 h-4 mr-2" /> No Access
+            </Button>
+          )
+        ) : (
+          <Button 
+            variant="outline" 
+            className="w-full border-white/10 text-muted-foreground"
+            disabled
+          >
+            <Lock className="w-4 h-4 mr-2" /> Login Required
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }

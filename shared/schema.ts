@@ -1,9 +1,9 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// User accounts linked to Discord
+// ============ USERS ============
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   discordId: text("discord_id").notNull().unique(),
@@ -12,6 +12,9 @@ export const users = pgTable("users", {
   avatar: text("avatar"),
   email: text("email"),
   roles: text("roles").array().default(sql`'{}'::text[]`),
+  websiteRoles: text("website_roles").array().default(sql`'{}'::text[]`), // Mapped website permissions
+  isStaff: boolean("is_staff").default(false),
+  staffTier: text("staff_tier"), // director, executive, manager, administrator, moderator, support, development
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -23,22 +26,181 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
 });
-
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-// Staff hierarchy configuration
-export const staffRoles = pgTable("staff_roles", {
+// ============ DEPARTMENTS ============
+export const departments = pgTable("departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(), // police, fire, ems, aos
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull(), // hex color for styling
+  icon: text("icon"), // lucide icon name
+  leadershipRoleIds: text("leadership_role_ids").array().default(sql`'{}'::text[]`), // Discord role IDs for leadership
+  memberRoleIds: text("member_role_ids").array().default(sql`'{}'::text[]`), // Discord role IDs for members
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDepartmentSchema = createInsertSchema(departments).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+export type Department = typeof departments.$inferSelect;
+
+// ============ RANKS ============
+export const ranks = pgTable("ranks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  departmentCode: text("department_code").notNull(),
+  name: text("name").notNull(),
+  abbreviation: text("abbreviation"),
+  priority: integer("priority").notNull(), // Lower = higher rank
+  isLeadership: boolean("is_leadership").default(false),
+  callsignPrefix: text("callsign_prefix"), // e.g., "1-" for leadership
+  discordRoleId: text("discord_role_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRankSchema = createInsertSchema(ranks).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRank = z.infer<typeof insertRankSchema>;
+export type Rank = typeof ranks.$inferSelect;
+
+// ============ ROSTER MEMBERS ============
+export const rosterMembers = pgTable("roster_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  departmentCode: text("department_code").notNull(),
+  rankId: varchar("rank_id").notNull(),
+  characterName: text("character_name"),
+  callsign: text("callsign"),
+  callsignNumber: integer("callsign_number"),
+  isActive: boolean("is_active").default(true),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertRosterMemberSchema = createInsertSchema(rosterMembers).omit({
+  id: true,
+  joinedAt: true,
+  updatedAt: true,
+});
+export type InsertRosterMember = z.infer<typeof insertRosterMemberSchema>;
+export type RosterMember = typeof rosterMembers.$inferSelect;
+
+// ============ APPLICATIONS ============
+export const applications = pgTable("applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  departmentCode: text("department_code").notNull(),
+  type: text("type").notNull(), // roster_request, promotion, leadership
+  status: text("status").default("pending"), // pending, approved, denied
+  formData: text("form_data"), // JSON string of form responses
+  reviewedBy: varchar("reviewed_by"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertApplicationSchema = createInsertSchema(applications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertApplication = z.infer<typeof insertApplicationSchema>;
+export type Application = typeof applications.$inferSelect;
+
+// ============ SOPs (Standard Operating Procedures) ============
+export const sops = pgTable("sops", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  departmentCode: text("department_code").notNull(),
+  title: text("title").notNull(),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
+  sections: text("sections"), // JSON array of section titles for TOC
+  uploadedBy: varchar("uploaded_by"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSopSchema = createInsertSchema(sops).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSop = z.infer<typeof insertSopSchema>;
+export type Sop = typeof sops.$inferSelect;
+
+// ============ ROLE MAPPINGS ============
+export const roleMappings = pgTable("role_mappings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   discordRoleId: text("discord_role_id").notNull().unique(),
-  name: text("name").notNull(),
-  tier: text("tier").notNull(), // "management", "administrators", "moderators"
-  priority: text("priority").notNull().default("0"),
+  discordRoleName: text("discord_role_name"),
+  websitePermission: text("website_permission").notNull(), // admin, staff, police, ems, fire, aos, etc.
+  staffTier: text("staff_tier"), // director, executive, manager, administrator, moderator, support, development
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertStaffRoleSchema = createInsertSchema(staffRoles).omit({
+export const insertRoleMappingSchema = createInsertSchema(roleMappings).omit({
   id: true,
+  createdAt: true,
+});
+export type InsertRoleMapping = z.infer<typeof insertRoleMappingSchema>;
+export type RoleMapping = typeof roleMappings.$inferSelect;
+
+// ============ ADMIN SETTINGS ============
+export const adminSettings = pgTable("admin_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value"),
+  description: text("description"),
+  isSecret: boolean("is_secret").default(false),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export type InsertStaffRole = z.infer<typeof insertStaffRoleSchema>;
-export type StaffRole = typeof staffRoles.$inferSelect;
+export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertAdminSetting = z.infer<typeof insertAdminSettingSchema>;
+export type AdminSetting = typeof adminSettings.$inferSelect;
+
+// ============ MENU ITEMS ============
+export const menuItems = pgTable("menu_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  label: text("label").notNull(),
+  path: text("path").notNull(),
+  icon: text("icon"),
+  requiredPermission: text("required_permission"), // null = public
+  priority: integer("priority").default(0),
+  isVisible: boolean("is_visible").default(true),
+  parentId: varchar("parent_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMenuItemSchema = createInsertSchema(menuItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertMenuItem = z.infer<typeof insertMenuItemSchema>;
+export type MenuItem = typeof menuItems.$inferSelect;
+
+// ============ STAFF HIERARCHY (for Meet the Team) ============
+export const STAFF_HIERARCHY = [
+  "director",
+  "executive", 
+  "manager",
+  "administrator",
+  "moderator",
+  "support",
+  "development"
+] as const;
+
+export type StaffTier = typeof STAFF_HIERARCHY[number];

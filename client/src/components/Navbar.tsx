@@ -24,7 +24,7 @@ export default function Navbar() {
         
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
           <Link href="/join" className="hover:text-primary transition-colors cursor-pointer">HOW TO JOIN</Link>
-          <Link href="/staff" className="hover:text-primary transition-colors cursor-pointer">STAFF</Link>
+          <Link href="/team" className="hover:text-primary transition-colors cursor-pointer">MEET THE TEAM</Link>
           <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
           <a href="#" className="hover:text-primary transition-colors">DONATE</a>
         </div>
@@ -85,7 +85,7 @@ export default function Navbar() {
         <div className="md:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-md border-b border-white/5 py-4 px-6">
           <div className="flex flex-col gap-4 text-sm font-medium">
             <Link href="/join" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>HOW TO JOIN</Link>
-            <Link href="/staff" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>STAFF</Link>
+            <Link href="/team" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>MEET THE TEAM</Link>
             <Link href="/departments" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>DEPARTMENTS</Link>
             <a href="#" className="hover:text-primary transition-colors py-2">DONATE</a>
           </div>

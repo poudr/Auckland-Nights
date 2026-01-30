@@ -8,6 +8,9 @@ export interface User {
   avatar: string | null;
   email: string | null;
   roles: string[] | null;
+  websiteRoles: string[] | null;
+  isStaff: boolean | null;
+  staffTier: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -86,15 +89,20 @@ export function useSyncRoles() {
   });
 }
 
-export function getAvatarUrl(user: User): string {
+export function getAvatarUrl(user: { discordId: string; avatar: string | null }): string {
   if (user.avatar) {
     return `https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png`;
   }
-  // Default Discord avatar
   const defaultNum = parseInt(user.discordId) % 5;
   return `https://cdn.discordapp.com/embed/avatars/${defaultNum}.png`;
 }
 
 export function loginWithDiscord() {
   window.location.href = "/api/auth/discord";
+}
+
+export function hasPermission(user: User | null, permission: string): boolean {
+  if (!user) return false;
+  if (user.staffTier === "director" || user.staffTier === "executive") return true;
+  return user.websiteRoles?.includes(permission) || user.websiteRoles?.includes("admin") || false;
 }

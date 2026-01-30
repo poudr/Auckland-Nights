@@ -1,0 +1,87 @@
+import { db } from "./db";
+import { departments, ranks, menuItems } from "@shared/schema";
+
+export async function seedDatabase() {
+  // Check if already seeded
+  const existingDepts = await db.select().from(departments);
+  if (existingDepts.length > 0) {
+    console.log("Database already seeded");
+    return;
+  }
+
+  console.log("Seeding database...");
+
+  // Seed Departments
+  await db.insert(departments).values([
+    { code: "police", name: "Auckland Police Department", color: "#3B82F6", icon: "Shield", description: "Serving and protecting the citizens of Tamaki Makaurau." },
+    { code: "fire", name: "NZ Fire & Emergency", color: "#EF4444", icon: "Flame", description: "Emergency fire response and rescue operations." },
+    { code: "ems", name: "St John Ambulance", color: "#22C55E", icon: "HeartPulse", description: "Providing world-class emergency medical care." },
+    { code: "aos", name: "Armed Offenders Squad (AOS)", color: "#8B5CF6", icon: "Target", description: "Special operations and tactical response unit." },
+  ]);
+
+  // Seed Police Ranks
+  await db.insert(ranks).values([
+    // Leadership
+    { departmentCode: "police", name: "Commissioner", abbreviation: "COMM", priority: 1, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "police", name: "Deputy Commissioner", abbreviation: "D/COMM", priority: 2, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "police", name: "Assistant Commissioner", abbreviation: "A/COMM", priority: 3, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "police", name: "Superintendent (Executive)", abbreviation: "SUPT-E", priority: 4, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "police", name: "Superintendent (Non-Executive)", abbreviation: "SUPT", priority: 5, isLeadership: true, callsignPrefix: "1-" },
+    // Non-Leadership
+    { departmentCode: "police", name: "Inspector", abbreviation: "INSP", priority: 6, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "police", name: "Senior Sergeant", abbreviation: "S/SGT", priority: 7, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "police", name: "Sergeant", abbreviation: "SGT", priority: 8, isLeadership: false, callsignPrefix: "3-" },
+    { departmentCode: "police", name: "Senior Constable", abbreviation: "S/CONST", priority: 9, isLeadership: false, callsignPrefix: "4-" },
+    { departmentCode: "police", name: "Constable", abbreviation: "CONST", priority: 10, isLeadership: false, callsignPrefix: "5-" },
+    { departmentCode: "police", name: "Recruit", abbreviation: "REC", priority: 11, isLeadership: false, callsignPrefix: "6-" },
+  ]);
+
+  // Seed Fire Ranks
+  await db.insert(ranks).values([
+    // Leadership
+    { departmentCode: "fire", name: "District Manager", abbreviation: "DM", priority: 1, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "fire", name: "Group Manager", abbreviation: "GM", priority: 2, isLeadership: true, callsignPrefix: "1-" },
+    // Non-Leadership
+    { departmentCode: "fire", name: "Senior Station Officer", abbreviation: "SSO", priority: 3, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "fire", name: "Station Officer", abbreviation: "SO", priority: 4, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "fire", name: "Senior Firefighter", abbreviation: "SFF", priority: 5, isLeadership: false, callsignPrefix: "3-" },
+    { departmentCode: "fire", name: "Qualified Firefighter", abbreviation: "QFF", priority: 6, isLeadership: false, callsignPrefix: "4-" },
+    { departmentCode: "fire", name: "Firefighter", abbreviation: "FF", priority: 7, isLeadership: false, callsignPrefix: "5-" },
+    { departmentCode: "fire", name: "Recruit", abbreviation: "REC", priority: 8, isLeadership: false, callsignPrefix: "6-" },
+  ]);
+
+  // Seed EMS Ranks
+  await db.insert(ranks).values([
+    // Leadership
+    { departmentCode: "ems", name: "District Operations Officer", abbreviation: "DOO", priority: 1, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "ems", name: "Group Operations Officer", abbreviation: "GOO", priority: 2, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "ems", name: "Watch Operations Officer", abbreviation: "WOO", priority: 3, isLeadership: true, callsignPrefix: "1-" },
+    // Non-Leadership
+    { departmentCode: "ems", name: "Critical Care Paramedic", abbreviation: "CCP", priority: 4, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "ems", name: "Intensive Care Paramedic", abbreviation: "ICP", priority: 5, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "ems", name: "Paramedic", abbreviation: "PM", priority: 6, isLeadership: false, callsignPrefix: "3-" },
+    { departmentCode: "ems", name: "Emergency Medical Technician", abbreviation: "EMT", priority: 7, isLeadership: false, callsignPrefix: "4-" },
+    { departmentCode: "ems", name: "First Responder", abbreviation: "FR", priority: 8, isLeadership: false, callsignPrefix: "5-" },
+  ]);
+
+  // Seed AOS Ranks
+  await db.insert(ranks).values([
+    { departmentCode: "aos", name: "Commander", abbreviation: "CMD", priority: 1, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "aos", name: "Deputy Commander", abbreviation: "D/CMD", priority: 2, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "aos", name: "Team Leader", abbreviation: "TL", priority: 3, isLeadership: false, callsignPrefix: "2-" },
+    { departmentCode: "aos", name: "Senior Operator", abbreviation: "S/OP", priority: 4, isLeadership: false, callsignPrefix: "3-" },
+    { departmentCode: "aos", name: "Operator", abbreviation: "OP", priority: 5, isLeadership: false, callsignPrefix: "4-" },
+    { departmentCode: "aos", name: "Trainee", abbreviation: "TRN", priority: 6, isLeadership: false, callsignPrefix: "5-" },
+  ]);
+
+  // Seed Menu Items
+  await db.insert(menuItems).values([
+    { label: "Home", path: "/", priority: 0, isVisible: true },
+    { label: "How to Join", path: "/join", priority: 1, isVisible: true },
+    { label: "Meet the Team", path: "/team", priority: 2, isVisible: true },
+    { label: "Departments", path: "/departments", priority: 3, isVisible: true },
+    { label: "Admin", path: "/admin", priority: 10, isVisible: true, requiredPermission: "admin" },
+  ]);
+
+  console.log("Database seeded successfully!");
+}
