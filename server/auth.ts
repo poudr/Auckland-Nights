@@ -28,14 +28,21 @@ const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
 
 export function setupAuth(app: Express) {
+  // Require SESSION_SECRET in production
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret && process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
+  
   // Session configuration
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "tamaki-makaurau-rp-secret-key",
+    secret: sessionSecret || "dev-only-secret-change-in-production",
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   };

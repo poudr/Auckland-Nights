@@ -154,14 +154,19 @@ export async function registerRoutes(
     
     // Map departments to required role IDs (these would be configured)
     const departmentRoles: Record<string, string[]> = {
-      police: process.env.POLICE_ROLE_IDS?.split(",") || [],
-      ems: process.env.EMS_ROLE_IDS?.split(",") || [],
-      fire: process.env.FIRE_ROLE_IDS?.split(",") || [],
+      police: process.env.POLICE_ROLE_IDS?.split(",").filter(Boolean) || [],
+      ems: process.env.EMS_ROLE_IDS?.split(",").filter(Boolean) || [],
+      fire: process.env.FIRE_ROLE_IDS?.split(",").filter(Boolean) || [],
     };
 
-    const requiredRoles = departmentRoles[department.toLowerCase()] || [];
-    const hasAccess = requiredRoles.length === 0 || requiredRoles.some(r => userRoles.includes(r));
-
+    const requiredRoles = departmentRoles[department.toLowerCase()];
+    
+    // If department doesn't exist or roles aren't configured, deny access
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return res.json({ hasAccess: false, department, reason: "Department not configured" });
+    }
+    
+    const hasAccess = requiredRoles.some(r => userRoles.includes(r));
     res.json({ hasAccess, department });
   });
 
