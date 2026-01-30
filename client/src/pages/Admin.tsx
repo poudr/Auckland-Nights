@@ -9,13 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft } from "lucide-react";
+import { Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft, ChevronDown, Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, useAuthStatus, hasPermission, getAvatarUrl, type User } from "@/lib/auth";
 
 const STAFF_HIERARCHY = ["director", "executive", "manager", "administrator", "moderator", "support", "development"] as const;
+
+const AVAILABLE_PERMISSIONS = [
+  { id: "admin", label: "Admin", description: "Full admin access" },
+  { id: "police", label: "Police", description: "Auckland Police Department portal" },
+  { id: "fire", label: "Fire", description: "NZ Fire & Emergency portal" },
+  { id: "ems", label: "EMS", description: "St John Ambulance portal" },
+  { id: "aos", label: "AOS", description: "Armed Offenders Squad portal" },
+] as const;
 
 interface RoleMapping {
   id: string;
@@ -276,9 +286,19 @@ function RoleMappingsTab() {
   const [newMapping, setNewMapping] = useState({
     discordRoleId: "",
     discordRoleName: "",
-    websitePermission: "",
+    permissions: [] as string[],
     staffTier: "",
   });
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  
+  const togglePermission = (permId: string) => {
+    setNewMapping(prev => ({
+      ...prev,
+      permissions: prev.permissions.includes(permId)
+        ? prev.permissions.filter(p => p !== permId)
+        : [...prev.permissions, permId]
+    }));
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["roleMappings"],
@@ -290,7 +310,7 @@ function RoleMappingsTab() {
     onSuccess: () => {
       toast({ title: "Mapping Created", description: "Role mapping added successfully." });
       queryClient.invalidateQueries({ queryKey: ["roleMappings"] });
-      setNewMapping({ discordRoleId: "", discordRoleName: "", websitePermission: "", staffTier: "" });
+      setNewMapping({ discordRoleId: "", discordRoleName: "", permissions: [], staffTier: "" });
     },
     onError: () => {
       toast({ title: "Failed", description: "Could not create role mapping.", variant: "destructive" });
@@ -346,13 +366,53 @@ function RoleMappingsTab() {
               />
             </div>
             <div>
-              <Label>Website Permission</Label>
-              <Input
-                placeholder="admin, police, ems..."
-                value={newMapping.websitePermission}
-                onChange={(e) => setNewMapping({ ...newMapping, websitePermission: e.target.value })}
-                data-testid="input-permission"
-              />
+              <Label>Website Permissions</Label>
+              <Popover open={permissionsOpen} onOpenChange={setPermissionsOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                    data-testid="button-permissions-dropdown"
+                  >
+                    {newMapping.permissions.length > 0 
+                      ? `${newMapping.permissions.length} selected`
+                      : "Select permissions..."}
+                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-0" align="start">
+                  <div className="p-2 space-y-1">
+                    {AVAILABLE_PERMISSIONS.map((perm) => (
+                      <div
+                        key={perm.id}
+                        className="flex items-center space-x-2 p-2 rounded hover:bg-zinc-800 cursor-pointer"
+                        onClick={() => togglePermission(perm.id)}
+                      >
+                        <Checkbox 
+                          checked={newMapping.permissions.includes(perm.id)}
+                          onCheckedChange={() => togglePermission(perm.id)}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{perm.label}</p>
+                          <p className="text-xs text-muted-foreground">{perm.description}</p>
+                        </div>
+                        {newMapping.permissions.includes(perm.id) && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {newMapping.permissions.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {newMapping.permissions.map(p => (
+                    <Badge key={p} variant="secondary" className="text-xs">
+                      {AVAILABLE_PERMISSIONS.find(ap => ap.id === p)?.label || p}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <Label>Staff Tier (Optional)</Label>
@@ -378,10 +438,10 @@ function RoleMappingsTab() {
             onClick={() => createMutation.mutate({
               discordRoleId: newMapping.discordRoleId,
               discordRoleName: newMapping.discordRoleName || null,
-              websitePermission: newMapping.websitePermission,
+              websitePermission: newMapping.permissions.join(","),
               staffTier: newMapping.staffTier === "none" ? null : newMapping.staffTier || null,
             })}
-            disabled={!newMapping.discordRoleId || !newMapping.websitePermission || createMutation.isPending}
+            disabled={!newMapping.discordRoleId || newMapping.permissions.length === 0 || createMutation.isPending}
             data-testid="button-add-mapping"
           >
             <Plus className="w-4 h-4 mr-2" /> Add Mapping
@@ -405,9 +465,15 @@ function RoleMappingsTab() {
                   <p className="font-medium">{m.discordRoleName || m.discordRoleId}</p>
                   <p className="text-xs text-muted-foreground">ID: {m.discordRoleId}</p>
                 </div>
-                <Badge variant="secondary">{m.websitePermission}</Badge>
+                <div className="flex flex-wrap gap-1">
+                  {m.websitePermission.split(",").map((perm, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-xs">
+                      {perm.trim()}
+                    </Badge>
+                  ))}
+                </div>
                 {m.staffTier && (
-                  <Badge className="capitalize">{m.staffTier}</Badge>
+                  <Badge className="capitalize bg-primary text-black">{m.staffTier}</Badge>
                 )}
                 <Button
                   variant="ghost"

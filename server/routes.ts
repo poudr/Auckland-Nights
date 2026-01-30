@@ -97,7 +97,9 @@ export async function registerRoutes(
       for (const discordRoleId of newRoles) {
         const mapping = roleMappings.find(m => m.discordRoleId === discordRoleId);
         if (mapping) {
-          websiteRoles.push(mapping.websitePermission);
+          // Handle comma-separated permissions
+          const permissions = mapping.websitePermission.split(",").map(p => p.trim()).filter(Boolean);
+          websiteRoles.push(...permissions);
           if (mapping.staffTier) {
             isStaff = true;
             // Keep the highest tier (lowest index)
@@ -365,7 +367,9 @@ export async function registerRoutes(
             for (const discordRoleId of newRoles) {
               const mapping = roleMappings.find(m => m.discordRoleId === discordRoleId);
               if (mapping) {
-                websiteRoles.push(mapping.websitePermission);
+                // Handle comma-separated permissions
+                const permissions = mapping.websitePermission.split(",").map(p => p.trim()).filter(Boolean);
+                websiteRoles.push(...permissions);
                 if (mapping.staffTier) {
                   isStaff = true;
                   if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
@@ -419,10 +423,16 @@ export async function registerRoutes(
   app.get("/api/user/check-access/:department", isAuthenticated, (req, res) => {
     const department = req.params.department as string;
     const userRoles = req.user?.websiteRoles || [];
+    const staffTier = req.user?.staffTier;
+    
+    // Directors and Executives automatically get access to ALL department portals
+    if (staffTier === "director" || staffTier === "executive") {
+      return res.json({ hasAccess: true, department, isLeadership: true });
+    }
     
     // Check if user has department permission
     const hasAccess = userRoles.includes(department) || userRoles.includes("admin");
-    res.json({ hasAccess, department });
+    res.json({ hasAccess, department, isLeadership: false });
   });
 
   return httpServer;
