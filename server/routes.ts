@@ -55,10 +55,14 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/auth/status", (req, res) => {
+  app.get("/api/auth/status", async (req, res) => {
+    const mappings = await storage.getRoleMappings();
+    const isBootstrapMode = mappings.length === 0;
+    
     res.json({
       discordConfigured,
       authenticated: req.isAuthenticated(),
+      isBootstrapMode, // True if no role mappings exist - first user gets admin access
     });
   });
 

@@ -1,16 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Shield, User, LogOut, RefreshCw, Menu, X } from "lucide-react";
+import { Shield, User, LogOut, RefreshCw, Menu, X, Settings } from "lucide-react";
 import { Link } from "wouter";
-import { useUser, useLogout, useSyncRoles, getAvatarUrl, loginWithDiscord } from "@/lib/auth";
+import { useUser, useLogout, useSyncRoles, useAuthStatus, getAvatarUrl, loginWithDiscord, hasPermission } from "@/lib/auth";
 import { useState } from "react";
 
 export default function Navbar() {
   const { data: user, isLoading } = useUser();
+  const { data: authStatus } = useAuthStatus();
   const logoutMutation = useLogout();
   const syncRolesMutation = useSyncRoles();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  const canAccessAdmin = hasPermission(user ?? null, "admin", authStatus?.isBootstrapMode);
 
   return (
     <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-background/80 backdrop-blur-md px-6 py-4">
@@ -27,6 +30,11 @@ export default function Navbar() {
           <Link href="/team" className="hover:text-primary transition-colors cursor-pointer">MEET THE TEAM</Link>
           <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
           <a href="#" className="hover:text-primary transition-colors">DONATE</a>
+          {user && canAccessAdmin && (
+            <Link href="/admin" className="hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
+              <Settings size={14} /> ADMIN
+            </Link>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -88,6 +96,11 @@ export default function Navbar() {
             <Link href="/team" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>MEET THE TEAM</Link>
             <Link href="/departments" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>DEPARTMENTS</Link>
             <a href="#" className="hover:text-primary transition-colors py-2">DONATE</a>
+            {user && canAccessAdmin && (
+              <Link href="/admin" className="hover:text-primary transition-colors py-2 flex items-center gap-1" onClick={() => setMobileMenuOpen(false)}>
+                <Settings size={14} /> ADMIN
+              </Link>
+            )}
           </div>
         </div>
       )}

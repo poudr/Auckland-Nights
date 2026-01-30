@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { useUser, hasPermission, getAvatarUrl, type User } from "@/lib/auth";
+import { useUser, useAuthStatus, hasPermission, getAvatarUrl, type User } from "@/lib/auth";
 
 const STAFF_HIERARCHY = ["director", "executive", "manager", "administrator", "moderator", "support", "development"] as const;
 
@@ -82,8 +82,11 @@ export default function Admin() {
   const activeTab = params?.tab || "users";
   
   const { data: user, isLoading: userLoading } = useUser();
+  const { data: authStatus, isLoading: authLoading } = useAuthStatus();
+  
+  const canAccessAdmin = hasPermission(user ?? null, "admin", authStatus?.isBootstrapMode);
 
-  if (userLoading) {
+  if (userLoading || authLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -94,7 +97,7 @@ export default function Admin() {
     );
   }
 
-  if (!user || !hasPermission(user, "admin")) {
+  if (!user || !canAccessAdmin) {
     return <Redirect to="/" />;
   }
 

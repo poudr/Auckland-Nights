@@ -173,7 +173,7 @@ export const hasRole = (roleIds: string[]): RequestHandler => {
 };
 
 export const hasPermission = (permission: string): RequestHandler => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -188,6 +188,15 @@ export const hasPermission = (permission: string): RequestHandler => {
     // Check specific permission
     if (websiteRoles.includes(permission) || websiteRoles.includes("admin")) {
       return next();
+    }
+    
+    // Bootstrap: If no role mappings exist, allow the first logged-in user to access admin
+    if (permission === "admin") {
+      const mappings = await storage.getRoleMappings();
+      if (mappings.length === 0) {
+        console.log("Bootstrap mode: Granting admin access to", req.user?.username);
+        return next();
+      }
     }
     
     return res.status(403).json({ error: "Forbidden: Insufficient permissions" });

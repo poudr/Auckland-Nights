@@ -18,6 +18,7 @@ export interface User {
 interface AuthStatus {
   discordConfigured: boolean;
   authenticated: boolean;
+  isBootstrapMode: boolean;
 }
 
 async function fetchUser(): Promise<User | null> {
@@ -101,8 +102,11 @@ export function loginWithDiscord() {
   window.location.href = "/api/auth/discord";
 }
 
-export function hasPermission(user: User | null, permission: string): boolean {
+export function hasPermission(user: User | null, permission: string, isBootstrapMode?: boolean): boolean {
   if (!user) return false;
   if (user.staffTier === "director" || user.staffTier === "executive") return true;
-  return user.websiteRoles?.includes(permission) || user.websiteRoles?.includes("admin") || false;
+  if (user.websiteRoles?.includes(permission) || user.websiteRoles?.includes("admin")) return true;
+  // Bootstrap mode: any logged-in user can access admin if no role mappings exist
+  if (permission === "admin" && isBootstrapMode) return true;
+  return false;
 }
