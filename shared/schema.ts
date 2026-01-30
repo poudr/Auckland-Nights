@@ -136,6 +136,44 @@ export const insertSopSchema = createInsertSchema(sops).omit({
 export type InsertSop = z.infer<typeof insertSopSchema>;
 export type Sop = typeof sops.$inferSelect;
 
+// ============ WEBSITE ROLES ============
+export const websiteRoles = pgTable("website_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  color: text("color").default("#6b7280"), // hex color for badge
+  permissions: text("permissions").array().default(sql`'{}'::text[]`), // admin, police, ems, fire, aos
+  staffTier: text("staff_tier"), // director, executive, manager, administrator, moderator, support, development
+  discordRoleId: text("discord_role_id"), // Optional mapping to Discord role
+  priority: integer("priority").default(0), // Lower = higher priority
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWebsiteRoleSchema = createInsertSchema(websiteRoles).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertWebsiteRole = z.infer<typeof insertWebsiteRoleSchema>;
+export type WebsiteRole = typeof websiteRoles.$inferSelect;
+
+// ============ USER ROLE ASSIGNMENTS ============
+export const userRoleAssignments = pgTable("user_role_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  roleId: varchar("role_id").notNull(),
+  assignedBy: varchar("assigned_by"),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+});
+
+export const insertUserRoleAssignmentSchema = createInsertSchema(userRoleAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+export type InsertUserRoleAssignment = z.infer<typeof insertUserRoleAssignmentSchema>;
+export type UserRoleAssignment = typeof userRoleAssignments.$inferSelect;
+
 // ============ ROLE MAPPINGS ============
 export const roleMappings = pgTable("role_mappings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

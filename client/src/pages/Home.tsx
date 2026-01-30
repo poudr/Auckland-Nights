@@ -1,16 +1,15 @@
 import { motion } from "framer-motion";
-import { Users, Shield, MapPin, MessageSquareDiff as DiscordIcon, Terminal, RefreshCw } from "lucide-react";
+import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import Navbar from "@/components/Navbar";
-import { useUser, useSyncRoles, getAvatarUrl, loginWithDiscord } from "@/lib/auth";
+import { useUser, loginWithDiscord } from "@/lib/auth";
 import heroImg from "@/assets/hero-auckland.png";
 
 export default function Home() {
-  const { data: user, isLoading } = useUser();
-  const syncRolesMutation = useSyncRoles();
+  const { data: user } = useUser();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -62,105 +61,23 @@ export default function Home() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="grid md:grid-cols-3 gap-8"
+            className="text-center py-12"
           >
-            {/* User Profile Card */}
-            <Card className="md:col-span-1 bg-zinc-900/50 border-white/5 overflow-hidden">
-              <div className="h-24 bg-primary/20 relative">
-                <div className="absolute -bottom-10 left-6">
-                  <div className="w-20 h-20 rounded-xl bg-zinc-800 border-4 border-zinc-900 overflow-hidden">
-                    <img 
-                      src={getAvatarUrl(user)} 
-                      alt={user.username}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-              </div>
-              <CardContent className="pt-12 pb-6">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold font-display">{user.username}</h2>
-                  <p className="text-muted-foreground text-sm">Discord ID: {user.discordId}</p>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Status</span>
-                    <span className="text-green-500 font-medium">Connected</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Roles Synced</span>
-                    <span className="text-foreground">{user.roles?.length || 0} Roles</span>
-                  </div>
-                </div>
-
-                <div className="mt-8">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Synced Discord Roles</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => syncRolesMutation.mutate()}
-                      disabled={syncRolesMutation.isPending}
-                      className="h-6 px-2"
-                    >
-                      <RefreshCw className={`h-3 w-3 ${syncRolesMutation.isPending ? 'animate-spin' : ''}`} />
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {user.roles && user.roles.length > 0 ? (
-                      user.roles.map((roleId) => (
-                        <Badge key={roleId} className="bg-primary/20 text-primary border-none text-xs">
-                          Role: {roleId.slice(-6)}
-                        </Badge>
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground">No roles synced yet. Click refresh to sync from Discord.</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Dashboard Stats */}
-            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: "Current Balance", value: "$45,200", icon: <Users className="text-primary" /> },
-                { label: "Assets Owned", value: "3 Vehicles", icon: <MapPin className="text-primary" /> },
-                { label: "Tickets", value: "0 Active", icon: <Shield className="text-primary" /> },
-                { label: "Rank", value: "Senior Officer", icon: <Terminal className="text-primary" /> },
-              ].map((stat, i) => (
-                <Card key={i} className="bg-zinc-900/50 border-white/5">
-                  <CardContent className="pt-6 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center">
-                      {stat.icon}
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-tight">{stat.label}</p>
-                      <p className="text-xl font-bold font-display">{stat.value}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              
-              <Card className="sm:col-span-2 bg-zinc-900/50 border-white/5">
-                <CardHeader>
-                  <CardTitle className="text-lg">Recent Activities</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((_, i) => (
-                      <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 rounded-full bg-primary" />
-                          <span className="text-sm">Purchased a new vehicle from Auckland Imports</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">2 hours ago</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+            <h2 className="text-3xl font-bold mb-4 font-display">Welcome back, {user.username}!</h2>
+            <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
+              You're connected to the Tamaki Makaurau RP community. Explore departments, meet the team, or learn how to join.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link href="/departments">
+                <Button size="lg" className="gap-2">
+                  <Shield className="w-4 h-4" /> Explore Departments
+                </Button>
+              </Link>
+              <Link href="/team">
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Users className="w-4 h-4" /> Meet the Team
+                </Button>
+              </Link>
             </div>
           </motion.div>
         ) : (

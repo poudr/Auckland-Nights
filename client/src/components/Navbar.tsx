@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Shield, User, LogOut, RefreshCw, Menu, X, Settings } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import { Shield, User, LogOut, RefreshCw, Menu, X, Settings, Home } from "lucide-react";
 import { Link } from "wouter";
 import { useUser, useLogout, useSyncRoles, useAuthStatus, getAvatarUrl, loginWithDiscord, hasPermission } from "@/lib/auth";
 import { useState } from "react";
@@ -26,6 +27,9 @@ export default function Navbar() {
         </Link>
         
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+          <Link href="/" className="hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
+            <Home size={14} /> HOME
+          </Link>
           <Link href="/join" className="hover:text-primary transition-colors cursor-pointer">HOW TO JOIN</Link>
           <Link href="/team" className="hover:text-primary transition-colors cursor-pointer">MEET THE TEAM</Link>
           <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
@@ -53,13 +57,50 @@ export default function Navbar() {
                   <span className="hidden sm:inline">{user.username}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex items-center gap-3 p-2">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={getAvatarUrl(user)} alt={user.username} />
+                      <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{user.username}</span>
+                      <span className="text-xs text-muted-foreground">{user.discordId}</span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {user.staffTier && (
+                  <>
+                    <div className="px-2 py-1.5">
+                      <p className="text-xs text-muted-foreground mb-1">Staff Tier</p>
+                      <Badge className="capitalize bg-primary text-black">{user.staffTier}</Badge>
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {user.websiteRoles && user.websiteRoles.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5">
+                      <p className="text-xs text-muted-foreground mb-1">Roles</p>
+                      <div className="flex flex-wrap gap-1">
+                        {user.websiteRoles.map((role: string) => (
+                          <Badge key={role} variant="outline" className="text-xs">
+                            {role}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => syncRolesMutation.mutate()} disabled={syncRolesMutation.isPending}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${syncRolesMutation.isPending ? 'animate-spin' : ''}`} />
                   Sync Roles
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
+                <DropdownMenuItem onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending} className="text-red-500 focus:text-red-500">
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
@@ -92,6 +133,9 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-md border-b border-white/5 py-4 px-6">
           <div className="flex flex-col gap-4 text-sm font-medium">
+            <Link href="/" className="hover:text-primary transition-colors py-2 flex items-center gap-1" onClick={() => setMobileMenuOpen(false)}>
+              <Home size={14} /> HOME
+            </Link>
             <Link href="/join" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>HOW TO JOIN</Link>
             <Link href="/team" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>MEET THE TEAM</Link>
             <Link href="/departments" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>DEPARTMENTS</Link>

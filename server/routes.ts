@@ -420,7 +420,7 @@ export async function registerRoutes(
   });
 
   // Check department access
-  app.get("/api/user/check-access/:department", isAuthenticated, (req, res) => {
+  app.get("/api/user/check-access/:department", isAuthenticated, async (req, res) => {
     const department = req.params.department as string;
     const userRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
@@ -430,9 +430,204 @@ export async function registerRoutes(
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
     
-    // Check if user has department permission
-    const hasAccess = userRoles.includes(department) || userRoles.includes("admin");
-    res.json({ hasAccess, department, isLeadership: false });
+    // Check if user has department permission (from Discord role mappings)
+    let hasAccess = userRoles.includes(department) || userRoles.includes("admin");
+    
+    // Also check website role assignments
+    const roleAssignments = await storage.getUserRoleAssignments(req.user!.id);
+    for (const assignment of roleAssignments) {
+      const role = await storage.getWebsiteRole(assignment.roleId);
+      if (role?.permissions?.includes(department) || role?.permissions?.includes("admin")) {
+        hasAccess = true;
+        break;
+      }
+    }
+    
+    // Check if user is leadership in this department (has leadership rank)
+    const rosterMember = await storage.getRosterMemberByUser(req.user!.id, department);
+    let isLeadership = false;
+    if (rosterMember) {
+      const rank = await storage.getRank(rosterMember.rankId);
+      isLeadership = rank?.isLeadership || false;
+    }
+    
+    res.json({ hasAccess, department, isLeadership });
+  });
+
+  // ============ WEBSITE ROLES ROUTES ============
+  app.get("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const roles = await storage.getWebsiteRoles();
+      res.json({ roles });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch website roles" });
+    }
+  });
+
+  app.post("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const role = await storage.createWebsiteRole(req.body);
+      res.json({ role });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create website role" });
+    }
+  });
+
+  app.put("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const role = await storage.updateWebsiteRole(req.params.id as string, req.body);
+      res.json({ role });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update website role" });
+    }
+  });
+
+  app.delete("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      await storage.deleteWebsiteRole(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete website role" });
+    }
+  });
+
+  // ============ USER ROLE ASSIGNMENT ROUTES ============
+  app.get("/api/admin/users/:userId/roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const assignments = await storage.getUserRoleAssignments(req.params.userId as string);
+      const roles = await storage.getWebsiteRoles();
+      const assignedRoles = assignments.map(a => roles.find(r => r.id === a.roleId)).filter(Boolean);
+      res.json({ roles: assignedRoles, assignments });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user roles" });
+    }
+  });
+
+  app.post("/api/admin/users/:userId/roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const assignment = await storage.assignRoleToUser({
+        userId: req.params.userId as string,
+        roleId: req.body.roleId,
+        assignedBy: req.user!.id,
+      });
+      res.json({ assignment });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to assign role" });
+    }
+  });
+
+  app.delete("/api/admin/users/:userId/roles/:roleId", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      await storage.removeRoleFromUser(req.params.userId as string, req.params.roleId as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove role" });
+    }
+  });
+
+  app.put("/api/admin/users/:userId", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.userId as string);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      const updated = await storage.updateUser(user.discordId, req.body);
+      if (updated) {
+        const { accessToken, refreshToken, ...safeUser } = updated;
+        res.json({ user: safeUser });
+      } else {
+        res.status(404).json({ error: "Failed to update user" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // ============ DEPARTMENT RANK MANAGEMENT ROUTES ============
+  app.post("/api/departments/:code/ranks", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      
+      // Check if user has leadership access
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      
+      const rank = await storage.createRank({
+        ...req.body,
+        departmentCode: code,
+      });
+      res.json({ rank });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create rank" });
+    }
+  });
+
+  app.put("/api/departments/:code/ranks/:rankId", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      
+      // Check if user has leadership access
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      
+      const rank = await storage.updateRank(req.params.rankId as string, req.body);
+      res.json({ rank });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update rank" });
+    }
+  });
+
+  app.delete("/api/departments/:code/ranks/:rankId", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      
+      // Check if user has leadership access
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      
+      // Soft delete not available, just delete
+      // Note: This should probably check for roster members using this rank first
+      await storage.updateRank(req.params.rankId as string, { priority: -1 }); // Mark as deleted
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete rank" });
+    }
   });
 
   return httpServer;

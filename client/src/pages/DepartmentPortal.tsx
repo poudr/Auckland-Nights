@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link, Redirect } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 
@@ -27,6 +31,7 @@ interface Rank {
   priority: number;
   isLeadership: boolean;
   callsignPrefix: string | null;
+  discordRoleId: string | null;
 }
 
 interface RosterMember {
@@ -73,11 +78,16 @@ async function fetchSOPs(code: string): Promise<{ sops: SOP[] }> {
   return res.json();
 }
 
-async function checkAccess(code: string): Promise<boolean> {
+interface AccessData {
+  hasAccess: boolean;
+  isLeadership: boolean;
+  department: string;
+}
+
+async function checkAccess(code: string): Promise<AccessData> {
   const res = await fetch(`/api/user/check-access/${code}`, { credentials: "include" });
-  if (!res.ok) return false;
-  const data = await res.json();
-  return data.hasAccess;
+  if (!res.ok) return { hasAccess: false, isLeadership: false, department: code };
+  return res.json();
 }
 
 export default function DepartmentPortal() {
@@ -87,11 +97,13 @@ export default function DepartmentPortal() {
   
   const { data: user, isLoading: userLoading } = useUser();
   
-  const { data: accessData, isLoading: accessLoading } = useQuery({
+  const { data: accessData, isLoading: accessLoading } = useQuery<AccessData>({
     queryKey: ["departmentAccess", code],
     queryFn: () => checkAccess(code),
     enabled: !!user && !!code,
   });
+  
+  const hasLeadershipAccess = accessData?.isLeadership || false;
   
   const { data: deptData, isLoading: deptLoading } = useQuery({
     queryKey: ["department", code],
@@ -114,7 +126,7 @@ export default function DepartmentPortal() {
     return <Redirect to="/departments" />;
   }
 
-  if (accessData === false) {
+  if (accessData?.hasAccess === false) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -187,6 +199,13 @@ export default function DepartmentPortal() {
                   <ClipboardList className="w-4 h-4" /> Applications
                 </TabsTrigger>
               </Link>
+              {hasLeadershipAccess && (
+                <Link href={`/departments/${code}/leadership`}>
+                  <TabsTrigger value="leadership" className="gap-2" data-testid="tab-leadership">
+                    <Settings className="w-4 h-4" /> Leadership Settings
+                  </TabsTrigger>
+                </Link>
+              )}
             </TabsList>
 
             <TabsContent value="roster">
@@ -200,6 +219,12 @@ export default function DepartmentPortal() {
             <TabsContent value="applications">
               <ApplicationsTab code={code} user={user} />
             </TabsContent>
+            
+            {hasLeadershipAccess && (
+              <TabsContent value="leadership">
+                <LeadershipSettingsTab code={code} deptColor={department?.color || "#f97316"} />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>
@@ -401,6 +426,232 @@ function ApplicationsTab({ code, user }: { code: string; user: User }) {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isAddingRank, setIsAddingRank] = useState(false);
+  const [newRank, setNewRank] = useState({
+    name: "",
+    abbreviation: "",
+    priority: 10,
+    isLeadership: false,
+    callsignPrefix: "",
+    discordRoleId: "",
+  });
+
+  const { data: ranksData, isLoading } = useQuery({
+    queryKey: ["departmentRanks", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${code}/ranks`);
+      if (!res.ok) throw new Error("Failed to fetch ranks");
+      return res.json() as Promise<{ ranks: Rank[] }>;
+    },
+  });
+
+  const createRankMutation = useMutation({
+    mutationFn: async (rankData: typeof newRank) => {
+      const res = await fetch(`/api/departments/${code}/ranks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(rankData),
+      });
+      if (!res.ok) throw new Error("Failed to create rank");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Rank Created", description: "New rank has been added." });
+      queryClient.invalidateQueries({ queryKey: ["departmentRanks", code] });
+      setIsAddingRank(false);
+      setNewRank({ name: "", abbreviation: "", priority: 10, isLeadership: false, callsignPrefix: "", discordRoleId: "" });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not create rank.", variant: "destructive" });
+    },
+  });
+
+  const updateRankMutation = useMutation({
+    mutationFn: async ({ rankId, data }: { rankId: string; data: Partial<Rank> }) => {
+      const res = await fetch(`/api/departments/${code}/ranks/${rankId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update rank");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Rank Updated" });
+      queryClient.invalidateQueries({ queryKey: ["departmentRanks", code] });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not update rank.", variant: "destructive" });
+    },
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-96" />;
+  }
+
+  const ranks = ranksData?.ranks || [];
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold" style={{ color: deptColor }}>Hierarchy Management</h2>
+          <p className="text-muted-foreground">Manage department ranks and Discord role mappings</p>
+        </div>
+        <Button onClick={() => setIsAddingRank(true)} disabled={isAddingRank} data-testid="button-add-rank">
+          <Plus className="w-4 h-4 mr-2" /> Add Rank
+        </Button>
+      </div>
+
+      {isAddingRank && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5" /> New Rank
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Label>Rank Name</Label>
+                <Input
+                  placeholder="Commissioner"
+                  value={newRank.name}
+                  onChange={(e) => setNewRank({ ...newRank, name: e.target.value })}
+                  data-testid="input-rank-name"
+                />
+              </div>
+              <div>
+                <Label>Abbreviation</Label>
+                <Input
+                  placeholder="COMM"
+                  value={newRank.abbreviation}
+                  onChange={(e) => setNewRank({ ...newRank, abbreviation: e.target.value })}
+                  data-testid="input-rank-abbrev"
+                />
+              </div>
+              <div>
+                <Label>Priority (Lower = Higher Rank)</Label>
+                <Input
+                  type="number"
+                  value={newRank.priority}
+                  onChange={(e) => setNewRank({ ...newRank, priority: parseInt(e.target.value) || 0 })}
+                  data-testid="input-rank-priority"
+                />
+              </div>
+              <div>
+                <Label>Callsign Prefix</Label>
+                <Input
+                  placeholder="1-"
+                  value={newRank.callsignPrefix}
+                  onChange={(e) => setNewRank({ ...newRank, callsignPrefix: e.target.value })}
+                  data-testid="input-callsign-prefix"
+                />
+              </div>
+              <div>
+                <Label>Discord Role ID</Label>
+                <Input
+                  placeholder="123456789012345678"
+                  value={newRank.discordRoleId}
+                  onChange={(e) => setNewRank({ ...newRank, discordRoleId: e.target.value })}
+                  data-testid="input-rank-discord-id"
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-6">
+                <Checkbox 
+                  checked={newRank.isLeadership}
+                  onCheckedChange={(checked) => setNewRank({ ...newRank, isLeadership: checked as boolean })}
+                  id="is-leadership"
+                />
+                <Label htmlFor="is-leadership">Command/Leadership Position</Label>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => createRankMutation.mutate(newRank)}
+                disabled={!newRank.name || createRankMutation.isPending}
+                data-testid="button-save-rank"
+              >
+                Create Rank
+              </Button>
+              <Button variant="outline" onClick={() => setIsAddingRank(false)}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-4 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="w-8">#</div>
+          <div className="flex-1">Rank Name</div>
+          <div className="w-24 text-center">Abbreviation</div>
+          <div className="w-24 text-center">Prefix</div>
+          <div className="w-40 text-center">Discord Role ID</div>
+          <div className="w-24 text-center">Type</div>
+          <div className="w-16"></div>
+        </div>
+        
+        {ranks.map((rank, index) => (
+          <div
+            key={rank.id}
+            className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors"
+          >
+            <div className="w-8 text-muted-foreground font-mono">{rank.priority}</div>
+            <div className="flex-1 font-medium">{rank.name}</div>
+            <div className="w-24 text-center">
+              <Badge variant="secondary" style={{ backgroundColor: `${deptColor}20`, color: deptColor }}>
+                {rank.abbreviation || "-"}
+              </Badge>
+            </div>
+            <div className="w-24 text-center text-muted-foreground">
+              {rank.callsignPrefix || "-"}
+            </div>
+            <div className="w-40 text-center text-xs text-muted-foreground font-mono">
+              {rank.discordRoleId ? rank.discordRoleId.slice(-8) : "-"}
+            </div>
+            <div className="w-24 text-center">
+              {rank.isLeadership ? (
+                <Badge className="bg-primary text-black">Command</Badge>
+              ) : (
+                <Badge variant="outline">Personnel</Badge>
+              )}
+            </div>
+            <div className="w-16 flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  const newPriority = prompt("Enter new priority:", rank.priority.toString());
+                  if (newPriority) {
+                    updateRankMutation.mutate({ rankId: rank.id, data: { priority: parseInt(newPriority) } });
+                  }
+                }}
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+        
+        {ranks.length === 0 && (
+          <div className="text-center py-12">
+            <Settings className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No ranks configured. Add your first rank above.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

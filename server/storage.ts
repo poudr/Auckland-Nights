@@ -8,7 +8,9 @@ import {
   type RoleMapping, type InsertRoleMapping,
   type AdminSetting, type InsertAdminSetting,
   type MenuItem, type InsertMenuItem,
-  users, departments, ranks, rosterMembers, applications, sops, roleMappings, adminSettings, menuItems
+  type WebsiteRole, type InsertWebsiteRole,
+  type UserRoleAssignment, type InsertUserRoleAssignment,
+  users, departments, ranks, rosterMembers, applications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc } from "drizzle-orm";
@@ -72,6 +74,19 @@ export interface IStorage {
   createMenuItem(item: InsertMenuItem): Promise<MenuItem>;
   updateMenuItem(id: string, updates: Partial<InsertMenuItem>): Promise<MenuItem | undefined>;
   deleteMenuItem(id: string): Promise<void>;
+  
+  // Website Roles
+  getWebsiteRoles(): Promise<WebsiteRole[]>;
+  getWebsiteRole(id: string): Promise<WebsiteRole | undefined>;
+  createWebsiteRole(role: InsertWebsiteRole): Promise<WebsiteRole>;
+  updateWebsiteRole(id: string, updates: Partial<InsertWebsiteRole>): Promise<WebsiteRole | undefined>;
+  deleteWebsiteRole(id: string): Promise<void>;
+  
+  // User Role Assignments
+  getUserRoleAssignments(userId: string): Promise<UserRoleAssignment[]>;
+  assignRoleToUser(assignment: InsertUserRoleAssignment): Promise<UserRoleAssignment>;
+  removeRoleFromUser(userId: string, roleId: string): Promise<void>;
+  getUsersWithRole(roleId: string): Promise<UserRoleAssignment[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -316,6 +331,50 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMenuItem(id: string): Promise<void> {
     await db.delete(menuItems).where(eq(menuItems.id, id));
+  }
+
+  // ============ WEBSITE ROLES ============
+  async getWebsiteRoles(): Promise<WebsiteRole[]> {
+    return await db.select().from(websiteRoles).where(eq(websiteRoles.isActive, true)).orderBy(asc(websiteRoles.priority));
+  }
+
+  async getWebsiteRole(id: string): Promise<WebsiteRole | undefined> {
+    const [role] = await db.select().from(websiteRoles).where(eq(websiteRoles.id, id));
+    return role;
+  }
+
+  async createWebsiteRole(role: InsertWebsiteRole): Promise<WebsiteRole> {
+    const [created] = await db.insert(websiteRoles).values(role).returning();
+    return created;
+  }
+
+  async updateWebsiteRole(id: string, updates: Partial<InsertWebsiteRole>): Promise<WebsiteRole | undefined> {
+    const [updated] = await db.update(websiteRoles).set(updates).where(eq(websiteRoles.id, id)).returning();
+    return updated;
+  }
+
+  async deleteWebsiteRole(id: string): Promise<void> {
+    await db.update(websiteRoles).set({ isActive: false }).where(eq(websiteRoles.id, id));
+  }
+
+  // ============ USER ROLE ASSIGNMENTS ============
+  async getUserRoleAssignments(userId: string): Promise<UserRoleAssignment[]> {
+    return await db.select().from(userRoleAssignments).where(eq(userRoleAssignments.userId, userId));
+  }
+
+  async assignRoleToUser(assignment: InsertUserRoleAssignment): Promise<UserRoleAssignment> {
+    const [created] = await db.insert(userRoleAssignments).values(assignment).returning();
+    return created;
+  }
+
+  async removeRoleFromUser(userId: string, roleId: string): Promise<void> {
+    await db.delete(userRoleAssignments).where(
+      and(eq(userRoleAssignments.userId, userId), eq(userRoleAssignments.roleId, roleId))
+    );
+  }
+
+  async getUsersWithRole(roleId: string): Promise<UserRoleAssignment[]> {
+    return await db.select().from(userRoleAssignments).where(eq(userRoleAssignments.roleId, roleId));
   }
 }
 
