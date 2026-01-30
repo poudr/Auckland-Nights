@@ -57,9 +57,17 @@ export function setupAuth(app: Express) {
 
   // Only set up Discord strategy if credentials are available
   if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
-    const callbackURL = process.env.REPL_SLUG
-      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co/api/auth/discord/callback`
-      : "http://localhost:5000/api/auth/discord/callback";
+    // Use REPLIT_DEPLOYMENT_URL for production, or construct from REPLIT_DEV_DOMAIN for dev
+    let callbackURL: string;
+    if (process.env.REPLIT_DEPLOYMENT_URL) {
+      callbackURL = `${process.env.REPLIT_DEPLOYMENT_URL}/api/auth/discord/callback`;
+    } else if (process.env.REPLIT_DEV_DOMAIN) {
+      callbackURL = `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/discord/callback`;
+    } else {
+      callbackURL = "http://localhost:5000/api/auth/discord/callback";
+    }
+    
+    console.log("Discord OAuth Callback URL:", callbackURL);
 
     passport.use(
       new DiscordStrategy(
