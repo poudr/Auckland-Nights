@@ -90,6 +90,7 @@ export async function registerRoutes(
 
       // Map Discord roles to website permissions
       const roleMappings = await storage.getRoleMappings();
+      const allWebsiteRoleDefs = await storage.getWebsiteRoles();
       const websiteRoles: string[] = [];
       let staffTier: string | null = null;
       let isStaff = false;
@@ -97,14 +98,25 @@ export async function registerRoutes(
       for (const discordRoleId of newRoles) {
         const mapping = roleMappings.find(m => m.discordRoleId === discordRoleId);
         if (mapping) {
-          // Handle comma-separated permissions
           const permissions = mapping.websitePermission.split(",").map(p => p.trim()).filter(Boolean);
           websiteRoles.push(...permissions);
           if (mapping.staffTier) {
             isStaff = true;
-            // Keep the highest tier (lowest index)
             if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
               staffTier = mapping.staffTier;
+            }
+          }
+        }
+
+        const wsRole = allWebsiteRoleDefs.find(r => r.discordRoleId === discordRoleId);
+        if (wsRole) {
+          if (wsRole.permissions) {
+            websiteRoles.push(...wsRole.permissions);
+          }
+          if (wsRole.staffTier) {
+            isStaff = true;
+            if (!staffTier || STAFF_HIERARCHY.indexOf(wsRole.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
+              staffTier = wsRole.staffTier;
             }
           }
         }
@@ -384,6 +396,7 @@ export async function registerRoutes(
       const users = await storage.getAllUsers();
       const guildId = process.env.DISCORD_GUILD_ID;
       const roleMappings = await storage.getRoleMappings();
+      const allWebsiteRoleDefs = await storage.getWebsiteRoles();
       
       let synced = 0;
       let failed = 0;
@@ -404,16 +417,15 @@ export async function registerRoutes(
             const memberData = await response.json();
             const newRoles = memberData.roles || [];
             
-            const websiteRoles: string[] = [];
+            const websiteRolesArr: string[] = [];
             let staffTier: string | null = null;
             let isStaff = false;
 
             for (const discordRoleId of newRoles) {
               const mapping = roleMappings.find(m => m.discordRoleId === discordRoleId);
               if (mapping) {
-                // Handle comma-separated permissions
                 const permissions = mapping.websitePermission.split(",").map(p => p.trim()).filter(Boolean);
-                websiteRoles.push(...permissions);
+                websiteRolesArr.push(...permissions);
                 if (mapping.staffTier) {
                   isStaff = true;
                   if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
@@ -421,11 +433,24 @@ export async function registerRoutes(
                   }
                 }
               }
+
+              const wsRole = allWebsiteRoleDefs.find(r => r.discordRoleId === discordRoleId);
+              if (wsRole) {
+                if (wsRole.permissions) {
+                  websiteRolesArr.push(...wsRole.permissions);
+                }
+                if (wsRole.staffTier) {
+                  isStaff = true;
+                  if (!staffTier || STAFF_HIERARCHY.indexOf(wsRole.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
+                    staffTier = wsRole.staffTier;
+                  }
+                }
+              }
             }
 
             await storage.updateUser(user.discordId, {
               roles: newRoles,
-              websiteRoles: Array.from(new Set(websiteRoles)),
+              websiteRoles: Array.from(new Set(websiteRolesArr)),
               isStaff,
               staffTier,
             });

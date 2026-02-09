@@ -100,22 +100,60 @@ export function setupAuth(app: Express) {
               }
             }
 
+            // Resolve permissions from Discord roles
+            const STAFF_HIERARCHY = ["director", "executive", "manager", "administrator", "moderator", "support"];
+            const roleMappings = await storage.getRoleMappings();
+            const allWebsiteRoleDefs = await storage.getWebsiteRoles();
+            const websitePermissions: string[] = [];
+            let staffTier: string | null = null;
+            let isStaff = false;
+
+            for (const discordRoleId of userRoles) {
+              const mapping = roleMappings.find(m => m.discordRoleId === discordRoleId);
+              if (mapping) {
+                const permissions = mapping.websitePermission.split(",").map(p => p.trim()).filter(Boolean);
+                websitePermissions.push(...permissions);
+                if (mapping.staffTier) {
+                  isStaff = true;
+                  if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier) < STAFF_HIERARCHY.indexOf(staffTier)) {
+                    staffTier = mapping.staffTier;
+                  }
+                }
+              }
+
+              const wsRole = allWebsiteRoleDefs.find(r => r.discordRoleId === discordRoleId);
+              if (wsRole) {
+                if (wsRole.permissions) {
+                  websitePermissions.push(...wsRole.permissions);
+                }
+                if (wsRole.staffTier) {
+                  isStaff = true;
+                  if (!staffTier || STAFF_HIERARCHY.indexOf(wsRole.staffTier) < STAFF_HIERARCHY.indexOf(staffTier)) {
+                    staffTier = wsRole.staffTier;
+                  }
+                }
+              }
+            }
+
+            const uniquePermissions = Array.from(new Set(websitePermissions));
+
             // Check if user exists
             let user = await storage.getUserByDiscordId(profile.id);
 
             if (user) {
-              // Update existing user
               user = await storage.updateUser(profile.id, {
                 username: profile.username,
                 discriminator: profile.discriminator || null,
                 avatar: profile.avatar || null,
                 email: profile.email || null,
                 roles: userRoles,
+                websiteRoles: uniquePermissions,
+                isStaff,
+                staffTier,
                 accessToken,
                 refreshToken,
               });
             } else {
-              // Create new user
               user = await storage.createUser({
                 discordId: profile.id,
                 username: profile.username,
@@ -123,6 +161,9 @@ export function setupAuth(app: Express) {
                 avatar: profile.avatar || null,
                 email: profile.email || null,
                 roles: userRoles,
+                websiteRoles: uniquePermissions,
+                isStaff,
+                staffTier,
                 accessToken,
                 refreshToken,
               });
