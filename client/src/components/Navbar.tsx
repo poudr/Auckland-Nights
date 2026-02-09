@@ -6,6 +6,7 @@ import { Shield, User, LogOut, RefreshCw, Menu, X, Settings, Home } from "lucide
 import { Link } from "wouter";
 import { useUser, useLogout, useSyncRoles, useAuthStatus, getAvatarUrl, loginWithDiscord, hasPermission } from "@/lib/auth";
 import { useState } from "react";
+import tmrpLogo from "@/assets/tmrp-logo.jpg";
 
 export default function Navbar() {
   const { data: user, isLoading } = useUser();
@@ -20,9 +21,7 @@ export default function Navbar() {
     <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-background/80 backdrop-blur-md px-6 py-4">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
         <Link href="/" className="flex items-center gap-2 cursor-pointer">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center font-display font-bold text-xl text-black">
-            TM
-          </div>
+          <img src={tmrpLogo} alt="TMRP Logo" className="w-10 h-10 rounded-full object-cover" />
           <span className="font-display font-bold text-xl tracking-tighter hidden sm:inline">TAMAKI MAKAURAU RP</span>
         </Link>
         
