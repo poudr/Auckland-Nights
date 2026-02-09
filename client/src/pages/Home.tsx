@@ -36,7 +36,7 @@ export default function Home() {
               NEW ZEALAND'S PREMIER ROLEPLAY
             </Badge>
             <h1 className="text-6xl md:text-8xl font-black mb-6 gta-text-shadow leading-none">
-              AUCKLAND <br /> <span className="text-primary">REBORN</span>
+              TAMAKI MAKAURAU <br /> <span className="text-primary">REBORN</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
               Experience the most authentic NZ roleplay. From the CBD to the suburbs, write your story in the streets of Tamaki Makaurau.
