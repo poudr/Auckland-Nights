@@ -494,8 +494,11 @@ export async function registerRoutes(
     const userRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
     
+    console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
+    
     // Directors and Executives automatically get access to ALL department portals
     if (staffTier === "director" || staffTier === "executive") {
+      console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
     
