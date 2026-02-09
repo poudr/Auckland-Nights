@@ -47,9 +47,11 @@ export default function Home() {
                   PLAY NOW
                 </Button>
               </Link>
-              <Button size="lg" variant="secondary" className="h-14 px-8 text-lg font-bold" data-testid="button-rules">
-                VIEW RULES
-              </Button>
+              <Link href="/rules">
+                <Button size="lg" variant="secondary" className="h-14 px-8 text-lg font-bold" data-testid="button-rules">
+                  VIEW RULES
+                </Button>
+              </Link>
             </div>
           </motion.div>
         </div>

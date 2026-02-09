@@ -30,6 +30,7 @@ export default function Navbar() {
           <Link href="/" className="hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
             <Home size={14} /> HOME
           </Link>
+          <Link href="/rules" className="hover:text-primary transition-colors cursor-pointer">RULES</Link>
           <Link href="/join" className="hover:text-primary transition-colors cursor-pointer">HOW TO JOIN</Link>
           <Link href="/team" className="hover:text-primary transition-colors cursor-pointer">MEET THE TEAM</Link>
           <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
@@ -136,6 +137,7 @@ export default function Navbar() {
             <Link href="/" className="hover:text-primary transition-colors py-2 flex items-center gap-1" onClick={() => setMobileMenuOpen(false)}>
               <Home size={14} /> HOME
             </Link>
+            <Link href="/rules" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>RULES</Link>
             <Link href="/join" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>HOW TO JOIN</Link>
             <Link href="/team" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>MEET THE TEAM</Link>
             <Link href="/departments" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>DEPARTMENTS</Link>

@@ -10,11 +10,13 @@ import Team from "@/pages/Team";
 import Departments from "@/pages/Departments";
 import DepartmentPortal from "@/pages/DepartmentPortal";
 import Admin from "@/pages/Admin";
+import Rules from "@/pages/Rules";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/rules" component={Rules} />
       <Route path="/join" component={Join} />
       <Route path="/team" component={Team} />
       <Route path="/departments" component={Departments} />

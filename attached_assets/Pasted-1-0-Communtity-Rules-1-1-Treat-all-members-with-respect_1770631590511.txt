@@ -1,0 +1,98 @@
+1.0 - Communtity Rules
+
+1.1 - Treat all members with respect.
+1.2 - Discrimination, hate speech, racism, sexism or harassment will not be tolerated.
+1.3 - No trolling griefing or intentionally running another member/s experience.
+1.4 - Do not impersonate staff or emergency services personnel unless properly whitelisted.
+1.5 - English must be used in all public interactions to maintain consistency and moderation.
+1.6 - Do not discuss real-life politics, religion or controversial topics in RP or OOC.
+1.7 - Posting any NSFW or Gore will result in a ban.
+1.8 - No streaming or promoting other server or any links in our community.
+1.9 - Keep swearing to a minimum.
+1.10 - If you are unable to handle banter don't join the banter VC. 
+1.11 - Don't ping staff unless necessary.
+
+2.0 - FiveM Rules
+2.1 - Use common sense.
+Use your head, Don't do things you wouldn't do IRL.
+2.2 - Random deathmatch (RDM)
+killing players without reason.
+2.3 -Vehicle deathmatch (VDM)
+Killing other players with a vehicle without reason.
+2.4 - Fail roleplay.
+Performing actions that would be impossible in real life (e.g., Instantly healing after being shot, ignoring injuries, not roleplaying crashes)
+2.5 - Combat logging.
+Disconnecting, force crash, or other ways to leave the server to avoid arrest, death or any ongoing roleplay situation.
+2.6 - Fail fear.
+Failing to show fear for your life or safety in situations where a normal person would be terrified.
+2.7 - Cop baiting.
+Intentionally over provoking police into chasing, arresting, or interacting with you without any valid roleplay.
+2.8 - GTA driving.
+Unrealistic driving e.g., driving a super car offroad, launching a  vehicles into the air then driving off like nothing happened to the vehicle.
+2.9 - Meta gaming.
+Using information that your character shouldn't know to gain a advantage in-game e.g. watching streamer's, using information in OOC chat.
+2.10 - New life rule.
+Once dead, hospitalized or arrested you cannot return to the same scene unless you have another character involved and all parties are aware.
+2.11 - Scene injecting.
+Forcing yourself into a scene that has nothing to do with you. 
+2.12.1 - Fleeing on cooldown.
+Running from police while priority status is on cooldown.
+2.12.2 - Fleeing on someone else priority.
+Running from police while someone else has priority.
+2.12.3 - Fleeing without priority.
+Running from police without claiming the prioity (try claim before running).
+2.13 - Using emergency services equipment.
+Using emergency services equipment is prohibited. e.g. Police Glock, taser, ESG,
+2.14 - Repairing vehicles.
+Repairing vehicles during an active scene/roleplay.
+2.15 - Power gaming.
+Forcing players actions without their consent.
+2.16 - Radio use.
+Keep all of out of character (OOC) chat out of emergency radio, use /ooc. 
+2.17 - Mic spamming
+Screaming, playing music or soundboards through your mic to get attention will result in a kick.
+2.18 - Explicit scenes
+Keep explicit scenes to a minimum.
+2.19 - Must have a working mic
+All players are required to have a working mic in order to play the server, NO MIC NO PLAY.
+
+3.0 -Staff Approved Scenes (Administrator+)
+3.1 - Scenes with 4 or more people (priority scenes)
+Scene with 4 more people requires staff approval.
+3.2 - Mass shootings.
+Large scale shooting scenes e.g. PD wipe, public shooting.
+3.3 - Using emergency services vehicles.
+Stealing any emergency services vehicle.
+3.4 - Hostage situations/kidnapping of a emergency services employee
+Taking any emergency service personal hostage (requires backstory) 
+3.5 - Explosives/bomb threats.
+Any scene involving a bomb requires high planning.
+3.6 - Roleplaying as a minor.
+Roleplaying as a character under the age of 16.
+3.7 - Suicide scenes.
+Scenes involving you taking your own life requires mass planning and staff to overseer.
+3.8 - Corrupt Roleplay
+Roleplaying as a corrupt government employee requires a story.
+
+4.0 - Civilian Roleplay
+
+4.1 - Characters age.
+All Character age must be of the age 16+ (anything younger refer to 3.6)
+4.2 - Characters names.
+All characters must have realistic and appropriate names, names such as Jim Bob, Mike Oxlong etc.. can result in a staff actions 
+4.3.1 - Clothing.
+All clothing must be seen, no having invisible body parts.
+4.3.2 - Wearing emergency clothing.
+Wearing clothing with a emergency patch is not allowed.
+4.4 - Equipment & Weapons. 
+Civilian are only allowed to use the “Civilian Weapons” in the weapon menu.
+4.5 - Duty system.
+All Civilians are required to be off duty (this can be done by doing /offduty).
+4.6 - Gang patches.
+Police cannot arrest someone for wearing gang patches. 
+
+5.0 - Vehicle rules
+5.1 - Armoued vehicels.
+All vehicles must have no armor or bulletproof tyres.
+5.2 - Waponized vehicles.
+Using a weaponized vehicle is forbidden, any miss use can result in staff actions (report to a staff either in game or via ticket if you have found a vehicle) 
