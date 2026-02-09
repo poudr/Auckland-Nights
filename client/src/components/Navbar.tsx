@@ -34,7 +34,7 @@ export default function Navbar() {
           <Link href="/join" className="hover:text-primary transition-colors cursor-pointer">HOW TO JOIN</Link>
           <Link href="/team" className="hover:text-primary transition-colors cursor-pointer">MEET THE TEAM</Link>
           <Link href="/departments" className="hover:text-primary transition-colors cursor-pointer">DEPARTMENTS</Link>
-          <a href="#" className="hover:text-primary transition-colors">DONATE</a>
+          <a href="https://tamaki-makaurau-roleplay.tebex.io/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">SHOP</a>
           {user && canAccessAdmin && (
             <Link href="/admin" className="hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
               <Settings size={14} /> ADMIN
@@ -141,7 +141,7 @@ export default function Navbar() {
             <Link href="/join" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>HOW TO JOIN</Link>
             <Link href="/team" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>MEET THE TEAM</Link>
             <Link href="/departments" className="hover:text-primary transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>DEPARTMENTS</Link>
-            <a href="#" className="hover:text-primary transition-colors py-2">DONATE</a>
+            <a href="https://tamaki-makaurau-roleplay.tebex.io/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors py-2">SHOP</a>
             {user && canAccessAdmin && (
               <Link href="/admin" className="hover:text-primary transition-colors py-2 flex items-center gap-1" onClick={() => setMobileMenuOpen(false)}>
                 <Settings size={14} /> ADMIN
