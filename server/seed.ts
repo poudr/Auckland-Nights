@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { departments, ranks, menuItems } from "@shared/schema";
+import { departments, ranks, menuItems, websiteRoles } from "@shared/schema";
 
 export async function seedDatabase() {
   // Check if already seeded
@@ -53,9 +53,9 @@ export async function seedDatabase() {
   // Seed EMS Ranks
   await db.insert(ranks).values([
     // Leadership
-    { departmentCode: "ems", name: "District Operations Officer", abbreviation: "DOO", priority: 1, isLeadership: true, callsignPrefix: "1-" },
-    { departmentCode: "ems", name: "Group Operations Officer", abbreviation: "GOO", priority: 2, isLeadership: true, callsignPrefix: "1-" },
-    { departmentCode: "ems", name: "Watch Operations Officer", abbreviation: "WOO", priority: 3, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "ems", name: "District Operations Manager", abbreviation: "DOM", priority: 1, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "ems", name: "Group Operations Manager", abbreviation: "GOM", priority: 2, isLeadership: true, callsignPrefix: "1-" },
+    { departmentCode: "ems", name: "Watch Operations Manager", abbreviation: "WOM", priority: 3, isLeadership: true, callsignPrefix: "1-" },
     // Non-Leadership
     { departmentCode: "ems", name: "Critical Care Paramedic", abbreviation: "CCP", priority: 4, isLeadership: false, callsignPrefix: "2-" },
     { departmentCode: "ems", name: "Intensive Care Paramedic", abbreviation: "ICP", priority: 5, isLeadership: false, callsignPrefix: "2-" },
@@ -72,6 +72,16 @@ export async function seedDatabase() {
     { departmentCode: "aos", name: "Senior Operator", abbreviation: "S/OP", priority: 4, isLeadership: false, callsignPrefix: "3-" },
     { departmentCode: "aos", name: "Operator", abbreviation: "OP", priority: 5, isLeadership: false, callsignPrefix: "4-" },
     { departmentCode: "aos", name: "Trainee", abbreviation: "TRN", priority: 6, isLeadership: false, callsignPrefix: "5-" },
+  ]);
+
+  // Seed Staff Roles
+  await db.insert(websiteRoles).values([
+    { name: "director", displayName: "Director", description: "Server Director - Full access", color: "#f97316", permissions: ["admin", "police", "fire", "ems", "aos"], staffTier: "director", priority: 1 },
+    { name: "executive", displayName: "Executive", description: "Server Executive - Full access", color: "#f59e0b", permissions: ["admin", "police", "fire", "ems", "aos"], staffTier: "executive", priority: 2 },
+    { name: "manager", displayName: "Manager", description: "Server Manager", color: "#eab308", permissions: ["admin", "police", "fire", "ems", "aos"], staffTier: "manager", priority: 3 },
+    { name: "administrator", displayName: "Administrator", description: "Server Administrator", color: "#84cc16", permissions: ["admin"], staffTier: "administrator", priority: 4 },
+    { name: "moderator", displayName: "Moderator", description: "Server Moderator", color: "#22c55e", permissions: [], staffTier: "moderator", priority: 5 },
+    { name: "support", displayName: "Support", description: "Support Staff", color: "#06b6d4", permissions: [], staffTier: "support", priority: 6 },
   ]);
 
   // Seed Menu Items

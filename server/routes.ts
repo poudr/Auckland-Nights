@@ -190,26 +190,70 @@ export async function registerRoutes(
 
   app.get("/api/departments/:code/roster", async (req, res) => {
     try {
-      const roster = await storage.getRosterByDepartment(req.params.code);
-      const ranks = await storage.getRanksByDepartment(req.params.code);
-      
-      // Enrich roster with user and rank data
-      const enrichedRoster = await Promise.all(
-        roster.map(async (member) => {
-          const user = await storage.getUser(member.userId);
-          const rank = ranks.find(r => r.id === member.rankId);
-          return {
-            ...member,
-            user: user ? { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId } : null,
-            rank,
-          };
-        })
-      );
+      const departmentRanks = await storage.getRanksByDepartment(req.params.code);
+      const allUsers = await storage.getAllUsers();
+      const manualRoster = await storage.getRosterByDepartment(req.params.code);
 
-      // Sort by rank priority
-      enrichedRoster.sort((a, b) => (a.rank?.priority || 999) - (b.rank?.priority || 999));
+      const ranksWithDiscordRole = departmentRanks
+        .filter(r => r.discordRoleId)
+        .sort((a, b) => a.priority - b.priority);
 
-      res.json({ roster: enrichedRoster, ranks });
+      type RosterEntry = {
+        id: string;
+        userId: string;
+        departmentCode: string;
+        rankId: string;
+        callsign: string | null;
+        callsignNumber: number | null;
+        isActive: boolean;
+        user: { id: string; username: string; avatar: string | null; discordId: string } | null;
+        rank: typeof departmentRanks[0] | undefined;
+      };
+
+      const rosterMap = new Map<string, RosterEntry>();
+
+      for (const rank of ranksWithDiscordRole) {
+        const matchingUsers = allUsers.filter(u =>
+          u.roles && u.roles.includes(rank.discordRoleId!)
+        );
+
+        for (const user of matchingUsers) {
+          if (rosterMap.has(user.id)) {
+            const existing = rosterMap.get(user.id)!;
+            if (rank.priority < (existing.rank?.priority || 999)) {
+              rosterMap.set(user.id, {
+                id: `auto-${user.id}-${rank.id}`,
+                userId: user.id,
+                departmentCode: req.params.code,
+                rankId: rank.id,
+                callsign: existing.callsign,
+                callsignNumber: existing.callsignNumber,
+                isActive: true,
+                user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId },
+                rank,
+              });
+            }
+          } else {
+            const manual = manualRoster.find(m => m.userId === user.id);
+            rosterMap.set(user.id, {
+              id: manual?.id || `auto-${user.id}-${rank.id}`,
+              userId: user.id,
+              departmentCode: req.params.code,
+              rankId: rank.id,
+              callsign: manual?.callsign || null,
+              callsignNumber: manual?.callsignNumber || null,
+              isActive: true,
+              user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId },
+              rank,
+            });
+          }
+        }
+      }
+
+      const autoRoster = Array.from(rosterMap.values())
+        .sort((a, b) => (a.rank?.priority || 999) - (b.rank?.priority || 999));
+
+      res.json({ roster: autoRoster, ranks: departmentRanks });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch roster" });
     }

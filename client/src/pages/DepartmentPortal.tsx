@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 
@@ -247,44 +247,66 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   }
 
   const roster = data?.roster || [];
-  const ranks = data?.ranks || [];
+  const allRanks = data?.ranks || [];
 
-  // Group by leadership vs non-leadership
-  const leadership = roster.filter(m => m.rank?.isLeadership);
-  const personnel = roster.filter(m => !m.rank?.isLeadership);
+  const rankGroups = allRanks.map(rank => ({
+    rank,
+    members: roster.filter(m => m.rankId === rank.id),
+  }));
+
+  const populatedGroups = rankGroups.filter(g => g.members.length > 0);
+  const emptyRanks = rankGroups.filter(g => g.members.length === 0);
 
   return (
-    <div className="space-y-8">
-      {leadership.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold mb-4 uppercase tracking-widest" style={{ color: deptColor }}>
-            Command Staff
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {leadership.map((member) => (
-              <RosterCard key={member.id} member={member} deptColor={deptColor} isLeadership />
-            ))}
+    <div className="space-y-6" data-testid="roster-tab">
+      {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }) => (
+        <section key={rank.id}>
+          <div className="flex items-center gap-3 mb-3">
+            <h2
+              className="text-sm font-bold uppercase tracking-widest"
+              style={{ color: rank.isLeadership ? deptColor : undefined }}
+            >
+              {rank.name}
+            </h2>
+            <div className="flex-1 border-t border-white/5" />
+            <span className="text-xs text-muted-foreground">{members.length}</span>
           </div>
+          {rank.isLeadership ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {members.map((member) => (
+                <RosterCard key={member.id} member={member} deptColor={deptColor} isLeadership />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {members.map((member) => (
+                <RosterRow key={member.id} member={member} deptColor={deptColor} />
+              ))}
+            </div>
+          )}
         </section>
-      )}
+      ))}
 
-      {personnel.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold mb-4 uppercase tracking-widest text-muted-foreground">
-            Personnel
-          </h2>
-          <div className="space-y-2">
-            {personnel.map((member) => (
-              <RosterRow key={member.id} member={member} deptColor={deptColor} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {roster.length === 0 && (
+      {populatedGroups.length === 0 && (
         <div className="text-center py-12">
           <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-muted-foreground">No roster members yet.</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Assign Discord Role IDs to department ranks to auto-populate the roster.
+          </p>
+        </div>
+      )}
+
+      {emptyRanks.length > 0 && populatedGroups.length > 0 && (
+        <div className="border-t border-white/5 pt-4">
+          <p className="text-xs text-muted-foreground mb-2">Ranks with no members:</p>
+          <div className="flex flex-wrap gap-2">
+            {emptyRanks.map(({ rank }) => (
+              <Badge key={rank.id} variant="outline" className="text-xs text-muted-foreground">
+                {rank.name} {!rank.discordRoleId && "(no Discord role linked)"}
+              </Badge>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -426,6 +448,89 @@ function ApplicationsTab({ code, user }: { code: string; user: User }) {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function RankRow({ rank, deptColor, onUpdate }: { rank: Rank; deptColor: string; onUpdate: (data: Record<string, unknown>) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [discordRoleId, setDiscordRoleId] = useState(rank.discordRoleId || "");
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/50 border border-white/10">
+        <div className="w-8 text-muted-foreground font-mono">{rank.priority}</div>
+        <div className="flex-1 font-medium">{rank.name}</div>
+        <div className="flex-1">
+          <Input
+            placeholder="Discord Role ID (e.g. 123456789012345678)"
+            value={discordRoleId}
+            onChange={(e) => setDiscordRoleId(e.target.value)}
+            className="h-8 text-sm"
+            data-testid={`input-rank-discord-id-${rank.id}`}
+            autoFocus
+          />
+        </div>
+        <Button
+          size="sm"
+          className="h-8"
+          onClick={() => {
+            onUpdate({ discordRoleId: discordRoleId || null });
+            setEditing(false);
+          }}
+          data-testid={`button-save-rank-${rank.id}`}
+        >
+          <Check className="w-3 h-3 mr-1" /> Save
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8"
+          onClick={() => { setEditing(false); setDiscordRoleId(rank.discordRoleId || ""); }}
+        >
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors">
+      <div className="w-8 text-muted-foreground font-mono">{rank.priority}</div>
+      <div className="flex-1 font-medium">{rank.name}</div>
+      <div className="w-24 text-center">
+        <Badge variant="secondary" style={{ backgroundColor: `${deptColor}20`, color: deptColor }}>
+          {rank.abbreviation || "-"}
+        </Badge>
+      </div>
+      <div className="w-24 text-center text-muted-foreground">
+        {rank.callsignPrefix || "-"}
+      </div>
+      <div className="w-40 text-center text-xs font-mono">
+        {rank.discordRoleId ? (
+          <span className="text-green-400">{rank.discordRoleId.slice(-8)}</span>
+        ) : (
+          <span className="text-red-400/60">Not linked</span>
+        )}
+      </div>
+      <div className="w-24 text-center">
+        {rank.isLeadership ? (
+          <Badge className="bg-primary text-black">Command</Badge>
+        ) : (
+          <Badge variant="outline">Personnel</Badge>
+        )}
+      </div>
+      <div className="w-16 flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setEditing(true)}
+          data-testid={`button-edit-rank-${rank.id}`}
+        >
+          <Edit className="w-4 h-4" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -602,47 +707,8 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
           <div className="w-16"></div>
         </div>
         
-        {ranks.map((rank, index) => (
-          <div
-            key={rank.id}
-            className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors"
-          >
-            <div className="w-8 text-muted-foreground font-mono">{rank.priority}</div>
-            <div className="flex-1 font-medium">{rank.name}</div>
-            <div className="w-24 text-center">
-              <Badge variant="secondary" style={{ backgroundColor: `${deptColor}20`, color: deptColor }}>
-                {rank.abbreviation || "-"}
-              </Badge>
-            </div>
-            <div className="w-24 text-center text-muted-foreground">
-              {rank.callsignPrefix || "-"}
-            </div>
-            <div className="w-40 text-center text-xs text-muted-foreground font-mono">
-              {rank.discordRoleId ? rank.discordRoleId.slice(-8) : "-"}
-            </div>
-            <div className="w-24 text-center">
-              {rank.isLeadership ? (
-                <Badge className="bg-primary text-black">Command</Badge>
-              ) : (
-                <Badge variant="outline">Personnel</Badge>
-              )}
-            </div>
-            <div className="w-16 flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => {
-                  const newPriority = prompt("Enter new priority:", rank.priority.toString());
-                  if (newPriority) {
-                    updateRankMutation.mutate({ rankId: rank.id, data: { priority: parseInt(newPriority) } });
-                  }
-                }}
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+        {ranks.map((rank) => (
+          <RankRow key={rank.id} rank={rank} deptColor={deptColor} onUpdate={(data) => updateRankMutation.mutate({ rankId: rank.id, data })} />
         ))}
         
         {ranks.length === 0 && (
