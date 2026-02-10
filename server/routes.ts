@@ -615,6 +615,21 @@ export async function registerRoutes(
     }
   });
 
+  // ============ ALL DEPARTMENT RANKS (ADMIN) ============
+  app.get("/api/admin/department-ranks", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const departments = await storage.getDepartments();
+      const result: Record<string, { department: typeof departments[0]; ranks: any[] }> = {};
+      for (const dept of departments) {
+        const ranks = await storage.getRanksByDepartment(dept.code);
+        result[dept.code] = { department: dept, ranks };
+      }
+      res.json({ departments: result });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch department ranks" });
+    }
+  });
+
   // ============ DEPARTMENT RANK MANAGEMENT ROUTES ============
   app.post("/api/departments/:code/ranks", isAuthenticated, async (req, res) => {
     try {

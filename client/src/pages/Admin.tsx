@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft, ChevronDown, Check, 
-  UserCog, Tag, Cog, Edit, X
+  UserCog, Tag, Cog, Edit, X, ChevronRight
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, useAuthStatus, hasPermission, getAvatarUrl } from "@/lib/auth";
@@ -178,6 +178,42 @@ async function removeRoleFromUser(userId: string, roleId: string): Promise<void>
 async function fetchUserRoles(userId: string): Promise<{ roles: WebsiteRole[], assignments: any[] }> {
   const res = await fetch(`/api/admin/users/${userId}/roles`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch user roles");
+  return res.json();
+}
+
+interface DepartmentRank {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  priority: number;
+  discordRoleId: string | null;
+  callsignPrefix: string | null;
+  isLeadership: boolean;
+  departmentCode: string;
+}
+
+interface DepartmentInfo {
+  id: string;
+  code: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+async function fetchDepartmentRanks(): Promise<{ departments: Record<string, { department: DepartmentInfo; ranks: DepartmentRank[] }> }> {
+  const res = await fetch("/api/admin/department-ranks", { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch department ranks");
+  return res.json();
+}
+
+async function updateDepartmentRank(deptCode: string, rankId: string, data: Partial<DepartmentRank>): Promise<any> {
+  const res = await fetch(`/api/departments/${deptCode}/ranks/${rankId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update rank");
   return res.json();
 }
 
@@ -1022,6 +1058,185 @@ function RoleManagementTab() {
           </div>
         </section>
       )}
+
+      <DepartmentRolesSection />
+    </div>
+  );
+}
+
+function DepartmentRolesSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
+
+  const { data: deptRanksData, isLoading } = useQuery({
+    queryKey: ["adminDepartmentRanks"],
+    queryFn: fetchDepartmentRanks,
+  });
+
+  const updateRankMutation = useMutation({
+    mutationFn: ({ deptCode, rankId, data }: { deptCode: string; rankId: string; data: Partial<DepartmentRank> }) =>
+      updateDepartmentRank(deptCode, rankId, data),
+    onSuccess: () => {
+      toast({ title: "Rank Updated" });
+      queryClient.invalidateQueries({ queryKey: ["adminDepartmentRanks"] });
+      queryClient.invalidateQueries({ queryKey: ["departmentRanks"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update rank", variant: "destructive" });
+    },
+  });
+
+  const toggleDept = (code: string) => {
+    setExpandedDepts(prev => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <section className="border-t border-white/5 pt-8">
+        <Skeleton className="h-48" />
+      </section>
+    );
+  }
+
+  const departments = deptRanksData?.departments || {};
+
+  return (
+    <section className="border-t border-white/5 pt-8">
+      <div className="mb-4">
+        <h3 className="text-lg font-bold">Department Roles</h3>
+        <p className="text-sm text-muted-foreground">
+          Manage Discord Role IDs for each department rank. Changes here are reflected in Leadership Settings and vice versa.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {Object.entries(departments).map(([code, { department, ranks }]) => {
+          const isExpanded = expandedDepts.has(code);
+          const linkedCount = ranks.filter(r => r.discordRoleId).length;
+          return (
+            <div key={code} className="rounded-lg border border-white/5 overflow-hidden" data-testid={`dept-roles-${code}`}>
+              <button
+                className="w-full flex items-center gap-4 p-4 hover:bg-zinc-900/50 transition-colors text-left"
+                onClick={() => toggleDept(code)}
+                data-testid={`button-toggle-dept-${code}`}
+              >
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: department.color }} />
+                <div className="flex-1">
+                  <p className="font-medium">{department.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {ranks.length} ranks · {linkedCount} linked to Discord
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {linkedCount}/{ranks.length}
+                </Badge>
+                <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+              </button>
+              {isExpanded && (
+                <div className="border-t border-white/5 bg-zinc-900/20">
+                  <div className="px-4 py-2 flex items-center gap-4 text-xs text-muted-foreground border-b border-white/5">
+                    <div className="w-8">#</div>
+                    <div className="flex-1">Rank Name</div>
+                    <div className="w-48 text-center">Discord Role ID</div>
+                    <div className="w-20" />
+                  </div>
+                  {ranks.sort((a, b) => a.priority - b.priority).map(rank => (
+                    <AdminRankRow
+                      key={rank.id}
+                      rank={rank}
+                      deptColor={department.color}
+                      onUpdate={(data) => updateRankMutation.mutate({ deptCode: code, rankId: rank.id, data })}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function AdminRankRow({ rank, deptColor, onUpdate }: { rank: DepartmentRank; deptColor: string; onUpdate: (data: Partial<DepartmentRank>) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [discordRoleId, setDiscordRoleId] = useState(rank.discordRoleId || "");
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-4 px-4 py-3 bg-zinc-900/50 border-b border-white/5">
+        <div className="w-8 text-muted-foreground font-mono text-sm">{rank.priority}</div>
+        <div className="flex-1 font-medium text-sm">{rank.name}</div>
+        <div className="w-48">
+          <Input
+            placeholder="Discord Role ID"
+            value={discordRoleId}
+            onChange={(e) => setDiscordRoleId(e.target.value)}
+            className="h-8 text-sm"
+            data-testid={`input-admin-rank-discord-id-${rank.id}`}
+            autoFocus
+          />
+        </div>
+        <div className="w-20 flex gap-1">
+          <Button
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => {
+              onUpdate({ discordRoleId: discordRoleId || null });
+              setEditing(false);
+            }}
+            data-testid={`button-save-admin-rank-${rank.id}`}
+          >
+            <Check className="w-3 h-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs"
+            onClick={() => { setEditing(false); setDiscordRoleId(rank.discordRoleId || ""); }}
+            data-testid={`button-cancel-admin-rank-${rank.id}`}
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4 px-4 py-3 hover:bg-zinc-900/30 transition-colors border-b border-white/5 last:border-0">
+      <div className="w-8 text-muted-foreground font-mono text-sm">{rank.priority}</div>
+      <div className="flex-1 text-sm">
+        <span className="font-medium">{rank.name}</span>
+        {rank.isLeadership && (
+          <Badge variant="outline" className="ml-2 text-[10px] py-0" style={{ borderColor: `${deptColor}50`, color: deptColor }}>
+            Leadership
+          </Badge>
+        )}
+      </div>
+      <div className="w-48 text-center text-xs font-mono">
+        {rank.discordRoleId ? (
+          <span className="text-green-400" title={rank.discordRoleId}>...{rank.discordRoleId.slice(-8)}</span>
+        ) : (
+          <span className="text-red-400/60">Not linked</span>
+        )}
+      </div>
+      <div className="w-20">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => setEditing(true)}
+          data-testid={`button-edit-admin-rank-${rank.id}`}
+        >
+          <Edit className="w-3 h-3 mr-1" /> Edit
+        </Button>
+      </div>
     </div>
   );
 }
