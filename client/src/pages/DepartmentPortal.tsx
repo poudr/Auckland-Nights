@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link, Redirect } from "wouter";
@@ -11,9 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
+import { fireSopSections } from "@/data/sop-fire";
+import { emsSopSections } from "@/data/sop-ems";
+import type { SOPSection, SOPContentBlock } from "@/data/sop-fire";
 
 interface Department {
   id: string;
@@ -360,7 +363,7 @@ function RosterTableRow({ member, deptColor, index, isPolice }: { member: Roster
   );
 }
 
-function SOPsTab({ code }: { code: string }) {
+function SOPsDatabaseFallback({ code }: { code: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["sops", code],
     queryFn: () => fetchSOPs(code),
@@ -372,7 +375,6 @@ function SOPsTab({ code }: { code: string }) {
 
   const sops = data?.sops || [];
 
-  // Group by category
   const categories = sops.reduce((acc, sop) => {
     if (!acc[sop.category]) acc[sop.category] = [];
     acc[sop.category].push(sop);
@@ -383,9 +385,7 @@ function SOPsTab({ code }: { code: string }) {
     <div className="space-y-8">
       {Object.entries(categories).map(([category, categorySOPs]) => (
         <section key={category}>
-          <h2 className="text-lg font-bold mb-4 uppercase tracking-widest text-muted-foreground">
-            {category}
-          </h2>
+          <h2 className="text-lg font-bold mb-4 uppercase tracking-widest text-muted-foreground">{category}</h2>
           <div className="space-y-4">
             {categorySOPs.map((sop) => (
               <Card key={sop.id} className="bg-zinc-900/40 border-white/5">
@@ -395,9 +395,7 @@ function SOPsTab({ code }: { code: string }) {
                       <CardTitle className="text-lg">{sop.title}</CardTitle>
                       <CardDescription>Version {sop.version}</CardDescription>
                     </div>
-                    <Badge variant="outline" className="text-xs">
-                      {new Date(sop.createdAt).toLocaleDateString()}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs">{new Date(sop.createdAt).toLocaleDateString()}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -410,13 +408,193 @@ function SOPsTab({ code }: { code: string }) {
           </div>
         </section>
       ))}
-
       {sops.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No SOPs published yet.</p>
+          <p className="text-muted-foreground" data-testid="text-no-sops">No SOPs published yet.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SOPContentRenderer({ block, index }: { block: SOPContentBlock; index: number }) {
+  switch (block.type) {
+    case "paragraph":
+      return <p className="text-sm text-muted-foreground leading-relaxed mb-3" data-testid={`text-sop-paragraph-${index}`}>{block.text}</p>;
+    case "heading":
+      return <h4 className="font-semibold text-sm text-foreground mt-4 mb-2" data-testid={`text-sop-heading-${index}`}>{block.text}</h4>;
+    case "note":
+      return (
+        <div className="bg-primary/5 border border-primary/10 rounded-lg p-4 mb-3" data-testid={`text-sop-note-${index}`}>
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{block.text}</p>
+        </div>
+      );
+    case "list":
+      return (
+        <ul className="space-y-1.5 mb-3 ml-4" data-testid={`list-sop-${index}`}>
+          {block.items?.map((item, i) => (
+            <li key={i} className="text-sm text-muted-foreground leading-relaxed flex gap-2" data-testid={`list-sop-item-${index}-${i}`}>
+              <span className="text-primary/60 shrink-0 mt-1">•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    case "table":
+      return (
+        <div className="overflow-x-auto mb-3 rounded-lg border border-white/5" data-testid={`table-sop-${index}`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-white/5">
+                {block.headers?.map((h, i) => (
+                  <th key={i} className="text-left px-4 py-2.5 font-semibold text-foreground text-xs uppercase tracking-wider">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows?.map((row, i) => (
+                <tr key={i} className="border-t border-white/5">
+                  {row.map((cell, j) => (
+                    <td key={j} className="px-4 py-2.5 text-muted-foreground">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
+function SOPsTab({ code }: { code: string }) {
+  const sopSections: SOPSection[] | null =
+    code === "fire" ? fireSopSections :
+    code === "ems" ? emsSopSections :
+    null;
+
+  const [activeSection, setActiveSection] = useState(sopSections?.[0]?.id || "");
+
+  useEffect(() => {
+    if (!sopSections) return;
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 200;
+      for (const section of sopSections) {
+        const element = document.getElementById(`sop-${section.id}`);
+        if (element) {
+          const { offsetTop, offsetHeight } = element;
+          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
+            setActiveSection(section.id);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [sopSections]);
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(`sop-${sectionId}`);
+    if (element) {
+      const offset = 120;
+      const top = element.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+  };
+
+  if (!sopSections) {
+    return <SOPsDatabaseFallback code={code} />;
+  }
+
+  return (
+    <div>
+      <div className="lg:hidden mb-6">
+        <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-3 overflow-x-auto sticky top-20 z-40">
+          <div className="flex gap-2 min-w-max">
+            {sopSections.map((section) => {
+              const isActive = activeSection === section.id;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => scrollToSection(section.id)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                    isActive
+                      ? "bg-primary/15 text-primary border border-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  }`}
+                  data-testid={`button-sop-section-${section.id}`}
+                >
+                  {section.title}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-8">
+        <aside className="hidden lg:block w-56 shrink-0">
+          <div className="sticky top-28">
+            <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-4">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 px-2">
+                Jump To
+              </h3>
+              <nav className="space-y-1" data-testid="nav-sop-sections">
+                {sopSections.map((section) => {
+                  const isActive = activeSection === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
+                        isActive
+                          ? "bg-primary/15 text-primary border border-primary/20"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      }`}
+                      data-testid={`button-sop-nav-${section.id}`}
+                    >
+                      <ChevronRight size={14} className={`shrink-0 transition-transform ${isActive ? "text-primary rotate-90" : ""}`} />
+                      <span className="flex-1 truncate">{section.title}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+        </aside>
+
+        <main className="flex-1 min-w-0">
+          <div className="space-y-10">
+            {sopSections.map((section, sectionIndex) => (
+              <motion.section
+                key={section.id}
+                id={`sop-${section.id}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: sectionIndex * 0.05 }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                    <span className="text-primary font-bold text-sm">{section.number}</span>
+                  </div>
+                  <h2 className="text-xl font-bold" data-testid={`text-sop-title-${section.id}`}>
+                    {section.title}
+                  </h2>
+                </div>
+
+                <div className="bg-zinc-900/30 border border-white/5 rounded-lg p-5">
+                  {section.content.map((block, blockIdx) => (
+                    <SOPContentRenderer key={blockIdx} block={block} index={blockIdx} />
+                  ))}
+                </div>
+              </motion.section>
+            ))}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
