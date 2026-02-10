@@ -221,23 +221,28 @@ export const hasPermission = (permission: string): RequestHandler => {
     const websiteRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
     
-    // Directors and executives have full access
-    if (staffTier === "director" || staffTier === "executive") {
-      return next();
-    }
-    
-    // Check specific permission
-    if (websiteRoles.includes(permission) || websiteRoles.includes("admin")) {
-      return next();
-    }
-    
-    // Bootstrap: If no role mappings exist, allow the first logged-in user to access admin
+    // Admin panel: Only Directors and Executives have access
     if (permission === "admin") {
+      if (staffTier === "director" || staffTier === "executive") {
+        return next();
+      }
+      // Bootstrap: If no role mappings exist, allow the first logged-in user to access admin
       const mappings = await storage.getRoleMappings();
       if (mappings.length === 0) {
         console.log("Bootstrap mode: Granting admin access to", req.user?.username);
         return next();
       }
+      return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+    }
+    
+    // Directors and executives have full access to non-admin permissions
+    if (staffTier === "director" || staffTier === "executive") {
+      return next();
+    }
+    
+    // Check specific permission
+    if (websiteRoles.includes(permission)) {
+      return next();
     }
     
     return res.status(403).json({ error: "Forbidden: Insufficient permissions" });

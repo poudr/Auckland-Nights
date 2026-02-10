@@ -19,14 +19,14 @@ interface TeamData {
   hierarchy: string[];
 }
 
-const TIER_CONFIG: Record<string, { label: string; color: string }> = {
-  director: { label: "Directors", color: "text-red-500 border-red-500/30" },
-  executive: { label: "Executives", color: "text-orange-500 border-orange-500/30" },
-  manager: { label: "Managers", color: "text-amber-500 border-amber-500/30" },
-  administrator: { label: "Administrators", color: "text-yellow-500 border-yellow-500/30" },
-  moderator: { label: "Moderators", color: "text-blue-500 border-blue-500/30" },
-  support: { label: "Support Team", color: "text-green-500 border-green-500/30" },
-  development: { label: "Development Team", color: "text-purple-500 border-purple-500/30" },
+const TIER_CONFIG: Record<string, { label: string; hex: string }> = {
+  director: { label: "Directors", hex: "#ffde90" },
+  executive: { label: "Executives", hex: "#e19fff" },
+  manager: { label: "Managers", hex: "#ff4848" },
+  administrator: { label: "Administrators", hex: "#3498db" },
+  moderator: { label: "Moderators", hex: "#e06f0b" },
+  support: { label: "Support Team", hex: "#02db3c" },
+  development: { label: "Development Team", hex: "#1abc9c" },
 };
 
 async function fetchTeam(): Promise<TeamData> {
@@ -77,7 +77,7 @@ export default function Team() {
                 const members = data.team[tier] || [];
                 if (members.length === 0) return null;
                 
-                const config = TIER_CONFIG[tier] || { label: tier, color: "text-gray-500 border-gray-500/30" };
+                const config = TIER_CONFIG[tier] || { label: tier, hex: "#9ca3af" };
                 
                 return (
                   <motion.section 
@@ -87,11 +87,11 @@ export default function Team() {
                     transition={{ delay: tierIdx * 0.1 }}
                   >
                     <div className="flex items-center gap-4 mb-6">
-                      <h2 className={`text-lg font-bold uppercase tracking-widest ${config.color.split(' ')[0]}`}>
+                      <h2 className="text-lg font-bold uppercase tracking-widest" style={{ color: config.hex }}>
                         {config.label}
                       </h2>
                       <div className="h-px bg-white/5 flex-1" />
-                      <Badge variant="outline" className={config.color}>
+                      <Badge variant="outline" style={{ color: config.hex, borderColor: `${config.hex}4d` }}>
                         {members.length} {members.length === 1 ? "Member" : "Members"}
                       </Badge>
                     </div>
@@ -114,7 +114,7 @@ export default function Team() {
                                 />
                               </div>
                               <h3 className="font-bold text-lg mb-1">{member.username}</h3>
-                              <Badge variant="secondary" className={`${config.color} bg-transparent text-xs`}>
+                              <Badge variant="secondary" className="bg-transparent text-xs" style={{ color: config.hex, borderColor: `${config.hex}4d` }}>
                                 {config.label.replace("s", "").replace(" Team", "")}
                               </Badge>
                             </CardContent>

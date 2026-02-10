@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { departments, ranks, menuItems, websiteRoles } from "@shared/schema";
+import { departments, ranks, menuItems, websiteRoles, roleMappings } from "@shared/schema";
 
 export async function seedDatabase() {
   // Check if already seeded
@@ -64,14 +64,11 @@ export async function seedDatabase() {
     { departmentCode: "ems", name: "First Responder", abbreviation: "FR", priority: 8, isLeadership: false, callsignPrefix: "5-" },
   ]);
 
-  // Seed AOS Ranks
-  await db.insert(ranks).values([
-    { departmentCode: "aos", name: "Commander", abbreviation: "CMD", priority: 1, isLeadership: true, callsignPrefix: "1-" },
-    { departmentCode: "aos", name: "Deputy Commander", abbreviation: "D/CMD", priority: 2, isLeadership: true, callsignPrefix: "1-" },
-    { departmentCode: "aos", name: "Team Leader", abbreviation: "TL", priority: 3, isLeadership: false, callsignPrefix: "2-" },
-    { departmentCode: "aos", name: "Senior Operator", abbreviation: "S/OP", priority: 4, isLeadership: false, callsignPrefix: "3-" },
-    { departmentCode: "aos", name: "Operator", abbreviation: "OP", priority: 5, isLeadership: false, callsignPrefix: "4-" },
-    { departmentCode: "aos", name: "Trainee", abbreviation: "TRN", priority: 6, isLeadership: false, callsignPrefix: "5-" },
+  // Seed Department Access Role Mappings
+  await db.insert(roleMappings).values([
+    { discordRoleId: "1027902719010279445", discordRoleName: "Auckland Police", websitePermission: "police", staffTier: null, priority: 100 },
+    { discordRoleId: "1027908734804037702", discordRoleName: "Fire Rescue Service", websitePermission: "fire", staffTier: null, priority: 100 },
+    { discordRoleId: "1027902716665663488", discordRoleName: "Emergency Ambulance Service", websitePermission: "ems", staffTier: null, priority: 100 },
   ]);
 
   // Seed Staff Roles
