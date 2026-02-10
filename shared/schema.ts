@@ -79,6 +79,7 @@ export const rosterMembers = pgTable("roster_members", {
   characterName: text("character_name"),
   callsign: text("callsign"),
   callsignNumber: integer("callsign_number"),
+  qid: text("qid"),
   isActive: boolean("is_active").default(true),
   joinedAt: timestamp("joined_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

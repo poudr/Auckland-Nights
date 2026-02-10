@@ -166,6 +166,29 @@ export default function Rules() {
             </p>
           </motion.div>
 
+          <div className="lg:hidden mb-6">
+            <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-3 overflow-x-auto sticky top-20 z-40">
+              <div className="flex gap-2 min-w-max">
+                {sections.map((section) => {
+                  const isActive = activeSection === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                        isActive
+                          ? "bg-primary/15 text-primary border border-primary/20"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      }`}
+                    >
+                      {section.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-8">
             <aside className="hidden lg:block w-64 shrink-0">
               <div className="sticky top-28">
@@ -204,29 +227,6 @@ export default function Rules() {
                 </div>
               </div>
             </aside>
-
-            <div className="flex-1 lg:hidden mb-6">
-              <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-3 overflow-x-auto sticky top-20 z-40">
-                <div className="flex gap-2 min-w-max">
-                  {sections.map((section) => {
-                    const isActive = activeSection === section.id;
-                    return (
-                      <button
-                        key={section.id}
-                        onClick={() => scrollToSection(section.id)}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                          isActive
-                            ? "bg-primary/15 text-primary border border-primary/20"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                        }`}
-                      >
-                        {section.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
 
             <main className="flex-1 min-w-0">
               <div className="space-y-12">

@@ -6,6 +6,18 @@ import { setupAuth, isAuthenticated, hasPermission } from "./auth";
 import { seedDatabase } from "./seed";
 import { STAFF_HIERARCHY } from "@shared/schema";
 
+function generateNextQid(existingQids: Set<string>): string {
+  for (let num = 1; num <= 99; num++) {
+    for (let charCode = 65; charCode <= 90; charCode++) {
+      const qid = `ACP${num.toString().padStart(2, "0")}${String.fromCharCode(charCode)}`;
+      if (!existingQids.has(qid)) {
+        return qid;
+      }
+    }
+  }
+  return `ACP99Z`;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -202,9 +214,10 @@ export async function registerRoutes(
 
   app.get("/api/departments/:code/roster", async (req, res) => {
     try {
-      const departmentRanks = await storage.getRanksByDepartment(req.params.code);
+      const code = req.params.code as string;
+      const departmentRanks = await storage.getRanksByDepartment(code);
       const allUsers = await storage.getAllUsers();
-      const manualRoster = await storage.getRosterByDepartment(req.params.code);
+      const manualRoster = await storage.getRosterByDepartment(code);
 
       const ranksWithDiscordRole = departmentRanks
         .filter(r => r.discordRoleId)
@@ -217,8 +230,9 @@ export async function registerRoutes(
         rankId: string;
         callsign: string | null;
         callsignNumber: number | null;
+        qid: string | null;
         isActive: boolean;
-        user: { id: string; username: string; avatar: string | null; discordId: string } | null;
+        user: { id: string; username: string; avatar: string | null; discordId: string; createdAt: Date | null } | null;
         rank: typeof departmentRanks[0] | undefined;
       };
 
@@ -236,12 +250,13 @@ export async function registerRoutes(
               rosterMap.set(user.id, {
                 id: `auto-${user.id}-${rank.id}`,
                 userId: user.id,
-                departmentCode: req.params.code,
+                departmentCode: code,
                 rankId: rank.id,
                 callsign: existing.callsign,
                 callsignNumber: existing.callsignNumber,
+                qid: existing.qid,
                 isActive: true,
-                user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId },
+                user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId, createdAt: user.createdAt },
                 rank,
               });
             }
@@ -250,12 +265,13 @@ export async function registerRoutes(
             rosterMap.set(user.id, {
               id: manual?.id || `auto-${user.id}-${rank.id}`,
               userId: user.id,
-              departmentCode: req.params.code,
+              departmentCode: code,
               rankId: rank.id,
               callsign: manual?.callsign || null,
               callsignNumber: manual?.callsignNumber || null,
+              qid: manual?.qid || null,
               isActive: true,
-              user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId },
+              user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId, createdAt: user.createdAt },
               rank,
             });
           }
@@ -263,10 +279,43 @@ export async function registerRoutes(
       }
 
       const autoRoster = Array.from(rosterMap.values())
-        .sort((a, b) => (a.rank?.priority || 999) - (b.rank?.priority || 999));
+        .sort((a, b) => {
+          const rankDiff = (a.rank?.priority || 999) - (b.rank?.priority || 999);
+          if (rankDiff !== 0) return rankDiff;
+          const aTime = a.user?.createdAt ? new Date(a.user.createdAt).getTime() : 0;
+          const bTime = b.user?.createdAt ? new Date(b.user.createdAt).getTime() : 0;
+          return aTime - bTime;
+        });
+
+      if (code === "police") {
+        const existingQids = new Set(
+          manualRoster.filter(m => m.qid).map(m => m.qid!)
+        );
+
+        for (const entry of autoRoster) {
+          if (!entry.qid) {
+            const nextQid = generateNextQid(existingQids);
+            entry.qid = nextQid;
+            existingQids.add(nextQid);
+
+            const manual = manualRoster.find(m => m.userId === entry.userId);
+            if (manual) {
+              await storage.updateRosterMember(manual.id, { qid: nextQid });
+            } else {
+              await storage.createRosterMember({
+                userId: entry.userId,
+                departmentCode: code,
+                rankId: entry.rankId,
+                qid: nextQid,
+              });
+            }
+          }
+        }
+      }
 
       res.json({ roster: autoRoster, ranks: departmentRanks });
     } catch (error) {
+      console.error("Roster fetch error:", error);
       res.status(500).json({ error: "Failed to fetch roster" });
     }
   });

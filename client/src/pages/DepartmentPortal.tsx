@@ -39,6 +39,7 @@ interface RosterMember {
   userId: string;
   rankId: string;
   callsign: string | null;
+  qid: string | null;
   status: string;
   user: { id: string; username: string; avatar: string | null; discordId: string } | null;
   rank: Rank | null;
@@ -241,13 +242,14 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
       </div>
     );
   }
 
   const roster = data?.roster || [];
   const allRanks = data?.ranks || [];
+  const isPolice = code === "police";
 
   const rankGroups = allRanks.map(rank => ({
     rank,
@@ -258,47 +260,54 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   const emptyRanks = rankGroups.filter(g => g.members.length === 0);
 
   return (
-    <div className="space-y-6" data-testid="roster-tab">
-      {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }) => (
-        <section key={rank.id}>
-          <div className="flex items-center gap-3 mb-3">
-            <h2
-              className="text-sm font-bold uppercase tracking-widest"
-              style={{ color: rank.isLeadership ? deptColor : undefined }}
-            >
-              {rank.name}
-            </h2>
-            <div className="flex-1 border-t border-white/5" />
-            <span className="text-xs text-muted-foreground">{members.length}</span>
-          </div>
-          {rank.isLeadership ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {members.map((member) => (
-                <RosterCard key={member.id} member={member} deptColor={deptColor} isLeadership />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {members.map((member) => (
-                <RosterRow key={member.id} member={member} deptColor={deptColor} />
-              ))}
-            </div>
-          )}
-        </section>
-      ))}
-
-      {populatedGroups.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No roster members yet.</p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Assign Discord Role IDs to department ranks to auto-populate the roster.
-          </p>
+    <div className="space-y-1" data-testid="roster-tab">
+      <div className="rounded-lg border border-white/5 overflow-hidden">
+        <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+          style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr 10rem 6rem" : "2.5rem 1fr 10rem" }}
+        >
+          <div>#</div>
+          <div>Member</div>
+          <div className="text-center">Rank</div>
+          {isPolice && <div className="text-center">QID</div>}
         </div>
-      )}
+
+        {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }, groupIdx) => (
+          <div key={rank.id}>
+            <div className="flex items-center gap-3 px-4 py-2 bg-zinc-800/40 border-b border-white/5">
+              <h2
+                className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: rank.isLeadership ? deptColor : undefined }}
+              >
+                {rank.name}
+              </h2>
+              <div className="flex-1 border-t border-white/5" />
+              <span className="text-[10px] text-muted-foreground">{members.length}</span>
+            </div>
+            {members.map((member, idx) => (
+              <RosterTableRow
+                key={member.id}
+                member={member}
+                deptColor={deptColor}
+                index={idx + 1}
+                isPolice={isPolice}
+              />
+            ))}
+          </div>
+        ))}
+
+        {populatedGroups.length === 0 && (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No roster members yet.</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Assign Discord Role IDs to department ranks to auto-populate the roster.
+            </p>
+          </div>
+        )}
+      </div>
 
       {emptyRanks.length > 0 && populatedGroups.length > 0 && (
-        <div className="border-t border-white/5 pt-4">
+        <div className="pt-4">
           <p className="text-xs text-muted-foreground mb-2">Ranks with no members:</p>
           <div className="flex flex-wrap gap-2">
             {emptyRanks.map(({ rank }) => (
@@ -313,55 +322,39 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   );
 }
 
-function RosterCard({ member, deptColor, isLeadership }: { member: RosterMember; deptColor: string; isLeadership?: boolean }) {
+function RosterTableRow({ member, deptColor, index, isPolice }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean }) {
   if (!member.user) return null;
-  
+
   return (
-    <Card className="bg-zinc-900/40 border-white/5 overflow-hidden">
-      <CardContent className="p-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-xl overflow-hidden bg-zinc-800 ring-2 ring-primary" style={{ borderColor: deptColor, border: `2px solid ${deptColor}` }}>
-          <img 
-            src={getAvatarUrl(member.user)} 
+    <div
+      className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors"
+      style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr 10rem 6rem" : "2.5rem 1fr 10rem" }}
+      data-testid={`roster-row-${member.user.discordId}`}
+    >
+      <div className="text-xs text-muted-foreground font-mono">{index}</div>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+          <img
+            src={getAvatarUrl(member.user)}
             alt={member.user.username}
             className="w-full h-full object-cover"
           />
         </div>
-        <div>
-          <h3 className="font-bold">{member.user.username}</h3>
-          <p className="text-sm" style={{ color: deptColor }}>{member.rank?.name}</p>
-          {member.callsign && (
-            <Badge variant="outline" className="mt-1 text-xs">
-              {member.callsign}
-            </Badge>
+        <span className="font-medium text-sm truncate">{member.user.username}</span>
+      </div>
+      <div className="text-center">
+        <span className="text-xs font-medium" style={{ color: deptColor }}>
+          {member.rank?.abbreviation || member.rank?.name}
+        </span>
+      </div>
+      {isPolice && (
+        <div className="text-center">
+          {member.qid ? (
+            <span className="text-xs font-mono font-bold" style={{ color: deptColor }}>{member.qid}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
           )}
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RosterRow({ member, deptColor }: { member: RosterMember; deptColor: string }) {
-  if (!member.user) return null;
-  
-  return (
-    <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors">
-      <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-800">
-        <img 
-          src={getAvatarUrl(member.user)} 
-          alt={member.user.username}
-          className="w-full h-full object-cover"
-        />
-      </div>
-      <div className="flex-1">
-        <span className="font-medium">{member.user.username}</span>
-      </div>
-      <Badge variant="secondary" className="text-xs" style={{ backgroundColor: `${deptColor}20`, color: deptColor }}>
-        {member.rank?.abbreviation || member.rank?.name}
-      </Badge>
-      {member.callsign && (
-        <Badge variant="outline" className="text-xs">
-          {member.callsign}
-        </Badge>
       )}
     </div>
   );
