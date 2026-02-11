@@ -10,7 +10,8 @@ import {
   type MenuItem, type InsertMenuItem,
   type WebsiteRole, type InsertWebsiteRole,
   type UserRoleAssignment, type InsertUserRoleAssignment,
-  users, departments, ranks, rosterMembers, applications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments
+  type AosSquad, type InsertAosSquad,
+  users, departments, ranks, rosterMembers, applications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc } from "drizzle-orm";
@@ -86,6 +87,13 @@ export interface IStorage {
   getUserRoleAssignments(userId: string): Promise<UserRoleAssignment[]>;
   assignRoleToUser(assignment: InsertUserRoleAssignment): Promise<UserRoleAssignment>;
   removeRoleFromUser(userId: string, roleId: string): Promise<void>;
+
+  // AOS Squads
+  getAosSquads(): Promise<AosSquad[]>;
+  getAosSquad(id: string): Promise<AosSquad | undefined>;
+  createAosSquad(squad: InsertAosSquad): Promise<AosSquad>;
+  updateAosSquad(id: string, updates: Partial<InsertAosSquad>): Promise<AosSquad | undefined>;
+  deleteAosSquad(id: string): Promise<void>;
   getUsersWithRole(roleId: string): Promise<UserRoleAssignment[]>;
 }
 
@@ -375,6 +383,30 @@ export class DatabaseStorage implements IStorage {
 
   async getUsersWithRole(roleId: string): Promise<UserRoleAssignment[]> {
     return await db.select().from(userRoleAssignments).where(eq(userRoleAssignments.roleId, roleId));
+  }
+
+  // ============ AOS SQUADS ============
+  async getAosSquads(): Promise<AosSquad[]> {
+    return await db.select().from(aosSquads).orderBy(asc(aosSquads.priority));
+  }
+
+  async getAosSquad(id: string): Promise<AosSquad | undefined> {
+    const [squad] = await db.select().from(aosSquads).where(eq(aosSquads.id, id));
+    return squad;
+  }
+
+  async createAosSquad(squad: InsertAosSquad): Promise<AosSquad> {
+    const [created] = await db.insert(aosSquads).values(squad).returning();
+    return created;
+  }
+
+  async updateAosSquad(id: string, updates: Partial<InsertAosSquad>): Promise<AosSquad | undefined> {
+    const [updated] = await db.update(aosSquads).set(updates).where(eq(aosSquads.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAosSquad(id: string): Promise<void> {
+    await db.delete(aosSquads).where(eq(aosSquads.id, id));
   }
 }
 

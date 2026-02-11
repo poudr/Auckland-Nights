@@ -4,6 +4,7 @@
 A dark-themed website for a New Zealand/Auckland-based GTA V FiveM roleplay server. Features Discord OAuth authentication with automatic role syncing from the Discord server to the website.
 
 ## Recent Changes
+- **Feb 11, 2026**: Home page About section (admin-editable description + Get Started button); Changed "Whitelisted Jobs" to "Custom Scripts"; Admin Settings now persist to database; AOS Squad system (squad CRUD, squad-based roster categorization, squad assignment in leadership settings)
 - **Feb 10, 2026**: Fire and EMS SOP pages with Jump To navigation (Rules-page style); Custom staff roster colors (hex); Admin panel restricted to Director/Executive only; Pre-seeded department access role mappings (Police, Fire, EMS, AOS); Removed AOS ranks from seed (manual setup); QID system for Police roster
 - **Feb 10, 2026**: Added "Department Roles" section in admin Role Management panel with expandable department accordions and inline Discord Role ID editing; Bi-directional sync with Leadership Settings (both use same rank update API); Fixed Leadership Settings tab visibility for Directors/Executives
 - **Feb 9, 2026**: Unified role management (merged Website Roles + Discord Mappings into single tab); Pre-seeded 6 staff roles; Auto-populating roster from Discord role IDs on department ranks; Inline rank Discord Role ID editing in Leadership Settings

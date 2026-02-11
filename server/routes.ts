@@ -737,6 +737,114 @@ export async function registerRoutes(
     }
   });
 
+  // Public settings endpoint (for about description, etc.)
+  app.get("/api/settings/:key", async (req, res) => {
+    try {
+      const setting = await storage.getAdminSetting(req.params.key as string);
+      if (!setting || setting.isSecret) {
+        return res.json({ value: null });
+      }
+      res.json({ value: setting.value });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch setting" });
+    }
+  });
+
+  // ============ AOS SQUADS ============
+  app.get("/api/aos/squads", async (req, res) => {
+    try {
+      const squads = await storage.getAosSquads();
+      res.json({ squads });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch squads" });
+    }
+  });
+
+  app.post("/api/aos/squads", isAuthenticated, async (req, res) => {
+    try {
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      const squad = await storage.createAosSquad(req.body);
+      res.json({ squad });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create squad" });
+    }
+  });
+
+  app.put("/api/aos/squads/:id", isAuthenticated, async (req, res) => {
+    try {
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      const squad = await storage.updateAosSquad(req.params.id as string, req.body);
+      res.json({ squad });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update squad" });
+    }
+  });
+
+  app.delete("/api/aos/squads/:id", isAuthenticated, async (req, res) => {
+    try {
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      await storage.deleteAosSquad(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete squad" });
+    }
+  });
+
+  // Update roster member squad assignment
+  app.put("/api/departments/aos/roster/:memberId/squad", isAuthenticated, async (req, res) => {
+    try {
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      const member = await storage.updateRosterMember(req.params.memberId as string, { squadId: req.body.squadId });
+      res.json({ member });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update squad assignment" });
+    }
+  });
+
   app.delete("/api/departments/:code/ranks/:rankId", isAuthenticated, async (req, res) => {
     try {
       const code = req.params.code as string;

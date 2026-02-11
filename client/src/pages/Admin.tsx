@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link, Redirect, useLocation } from "wouter";
@@ -1241,22 +1241,83 @@ function AdminRankRow({ rank, deptColor, onUpdate }: { rank: DepartmentRank; dep
   );
 }
 
+async function fetchAdminSettings(): Promise<Record<string, string>> {
+  const res = await fetch("/api/admin/settings", { credentials: "include" });
+  if (!res.ok) return {};
+  const data = await res.json();
+  const map: Record<string, string> = {};
+  for (const s of data.settings || []) {
+    map[s.key] = s.value || "";
+  }
+  return map;
+}
+
+async function saveSetting(key: string, value: string): Promise<void> {
+  await fetch("/api/admin/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ key, value }),
+  });
+}
+
 function SettingsTab() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
+  const { data: savedSettings, isLoading } = useQuery({
+    queryKey: ["adminSettings"],
+    queryFn: fetchAdminSettings,
+  });
+
   const [settings, setSettings] = useState({
-    serverName: "Tamaki Makaurau RP",
-    serverDescription: "Auckland-based GTA V FiveM roleplay server",
-    discordInvite: "https://discord.gg/example",
-    fivemConnect: "cfx.re/join/example",
+    serverName: "",
+    about_description: "",
+    discordInvite: "",
+    fivemConnect: "",
     maintenanceMode: false,
     registrationOpen: true,
     applicationCooldown: "7",
   });
 
-  const handleSave = () => {
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (savedSettings && !initialized) {
+      setSettings({
+        serverName: savedSettings["server_name"] || "Tamaki Makaurau RP",
+        about_description: savedSettings["about_description"] || "",
+        discordInvite: savedSettings["discord_invite"] || "",
+        fivemConnect: savedSettings["fivem_connect"] || "",
+        maintenanceMode: savedSettings["maintenance_mode"] === "true",
+        registrationOpen: savedSettings["registration_open"] !== "false",
+        applicationCooldown: savedSettings["application_cooldown"] || "7",
+      });
+      setInitialized(true);
+    }
+  }, [savedSettings, initialized]);
+
+  const handleSave = async () => {
+    const entries: [string, string][] = [
+      ["server_name", settings.serverName],
+      ["about_description", settings.about_description],
+      ["discord_invite", settings.discordInvite],
+      ["fivem_connect", settings.fivemConnect],
+      ["maintenance_mode", String(settings.maintenanceMode)],
+      ["registration_open", String(settings.registrationOpen)],
+      ["application_cooldown", settings.applicationCooldown],
+    ];
+    for (const [key, value] of entries) {
+      await saveSetting(key, value);
+    }
+    queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+    queryClient.invalidateQueries({ queryKey: ["setting"] });
     toast({ title: "Settings Saved", description: "Server settings have been updated." });
   };
+
+  if (isLoading) {
+    return <Skeleton className="h-96" />;
+  }
 
   return (
     <div className="space-y-6">
@@ -1290,11 +1351,16 @@ function SettingsTab() {
           </div>
           
           <div>
-            <Label>Server Description</Label>
+            <Label>About Description</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              This appears in the "About Tamaki Makaurau RP" section on the home page
+            </p>
             <Textarea
-              value={settings.serverDescription}
-              onChange={(e) => setSettings({ ...settings, serverDescription: e.target.value })}
-              data-testid="input-server-description"
+              rows={5}
+              value={settings.about_description}
+              onChange={(e) => setSettings({ ...settings, about_description: e.target.value })}
+              placeholder="Welcome to Tamaki Makaurau RP — New Zealand's premier GTA V FiveM roleplay server..."
+              data-testid="input-about-description"
             />
           </div>
 

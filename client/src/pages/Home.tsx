@@ -1,15 +1,28 @@
 import { motion } from "framer-motion";
-import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal } from "lucide-react";
+import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import { useUser, loginWithDiscord } from "@/lib/auth";
 import heroImg from "@/assets/hero-auckland.png";
 
+async function fetchSetting(key: string): Promise<string | null> {
+  const res = await fetch(`/api/settings/${key}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.value;
+}
+
 export default function Home() {
   const { data: user } = useUser();
+  const { data: aboutDescription, isLoading: aboutLoading } = useQuery({
+    queryKey: ["setting", "about_description"],
+    queryFn: () => fetchSetting("about_description"),
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -58,7 +71,7 @@ export default function Home() {
       </section>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-24">
+      <main className="max-w-7xl mx-auto px-6 py-24 space-y-24">
         {user ? (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -85,21 +98,21 @@ export default function Home() {
         ) : (
           <div className="grid md:grid-cols-3 gap-12 items-center">
             <div className="md:col-span-2">
-              <h2 className="text-4xl font-bold mb-8 font-display italic tracking-tight">WHY JOIN TAMAKI MAKAURAU?</h2>
+              <h2 className="text-4xl font-bold mb-8 font-display italic tracking-tight" data-testid="text-why-join">WHY JOIN TAMAKI MAKAURAU?</h2>
               <div className="grid sm:grid-cols-2 gap-8">
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
                     <Users className="text-primary" />
                   </div>
-                  <h3 className="text-xl font-bold">Thriving Community</h3>
-                  <p className="text-muted-foreground">Join hundreds of active players in a serious, high-quality roleplay environment designed for Kiwi gamers.</p>
+                  <h3 className="text-xl font-bold" data-testid="text-community-title">Thriving Community</h3>
+                  <p className="text-muted-foreground" data-testid="text-community-desc">Join hundreds of active players in a serious, high-quality roleplay environment designed for Kiwi gamers.</p>
                 </div>
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <Shield className="text-primary" />
+                    <Code className="text-primary" />
                   </div>
-                  <h3 className="text-xl font-bold">Whitelisted Jobs</h3>
-                  <p className="text-muted-foreground">Apply for NZ Police, St John Ambulance, or run your own local business in the heart of Auckland.</p>
+                  <h3 className="text-xl font-bold" data-testid="text-scripts-title">Custom Scripts</h3>
+                  <p className="text-muted-foreground" data-testid="text-scripts-desc">Fun and engaging custom scripts to ensure true immersion whilst playing Tamaki Makaurau RP.</p>
                 </div>
               </div>
             </div>
@@ -119,6 +132,30 @@ export default function Home() {
             </Card>
           </div>
         )}
+
+        {/* About Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          <Card className="bg-zinc-900/40 border-white/5 p-8 md:p-12">
+            <h2 className="text-3xl font-bold mb-6 font-display" data-testid="text-about-title">About Tamaki Makaurau RP</h2>
+            {aboutLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (
+              <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line mb-8" data-testid="text-about-description">
+                {aboutDescription || "Welcome to Tamaki Makaurau RP — New Zealand's premier GTA V FiveM roleplay server. Set in the heart of Auckland, we offer a realistic and immersive roleplay experience with dedicated departments, custom scripts, and an active community of passionate roleplayers."}
+              </p>
+            )}
+            <Link href="/join">
+              <Button size="lg" className="gap-2 orange-glow" data-testid="button-get-started">
+                Get Started <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          </Card>
+        </motion.section>
       </main>
 
       {/* Footer */}

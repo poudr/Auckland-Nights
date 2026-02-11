@@ -80,6 +80,7 @@ export const rosterMembers = pgTable("roster_members", {
   callsign: text("callsign"),
   callsignNumber: integer("callsign_number"),
   qid: text("qid"),
+  squadId: varchar("squad_id"),
   isActive: boolean("is_active").default(true),
   joinedAt: timestamp("joined_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -192,6 +193,21 @@ export const insertRoleMappingSchema = createInsertSchema(roleMappings).omit({
 });
 export type InsertRoleMapping = z.infer<typeof insertRoleMappingSchema>;
 export type RoleMapping = typeof roleMappings.$inferSelect;
+
+// ============ AOS SQUADS ============
+export const aosSquads = pgTable("aos_squads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAosSquadSchema = createInsertSchema(aosSquads).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAosSquad = z.infer<typeof insertAosSquadSchema>;
+export type AosSquad = typeof aosSquads.$inferSelect;
 
 // ============ ADMIN SETTINGS ============
 export const adminSettings = pgTable("admin_settings", {

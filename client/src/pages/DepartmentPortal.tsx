@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import { fireSopSections } from "@/data/sop-fire";
@@ -43,9 +43,16 @@ interface RosterMember {
   rankId: string;
   callsign: string | null;
   qid: string | null;
+  squadId: string | null;
   status: string;
   user: { id: string; username: string; avatar: string | null; discordId: string } | null;
   rank: Rank | null;
+}
+
+interface AosSquad {
+  id: string;
+  name: string;
+  priority: number | null;
 }
 
 interface SOP {
@@ -86,6 +93,12 @@ interface AccessData {
   hasAccess: boolean;
   isLeadership: boolean;
   department: string;
+}
+
+async function fetchAosSquads(): Promise<{ squads: AosSquad[] }> {
+  const res = await fetch("/api/aos/squads");
+  if (!res.ok) throw new Error("Failed to fetch squads");
+  return res.json();
 }
 
 async function checkAccess(code: string): Promise<AccessData> {
@@ -242,6 +255,12 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
     queryFn: () => fetchRoster(code),
   });
 
+  const { data: squadsData } = useQuery({
+    queryKey: ["aosSquads"],
+    queryFn: fetchAosSquads,
+    enabled: code === "aos",
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -253,6 +272,12 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   const roster = data?.roster || [];
   const allRanks = data?.ranks || [];
   const isPolice = code === "police";
+  const isAos = code === "aos";
+  const squads = squadsData?.squads || [];
+
+  if (isAos && squads.length > 0) {
+    return <AosSquadRoster roster={roster} allRanks={allRanks} squads={squads} deptColor={deptColor} />;
+  }
 
   const rankGroups = allRanks.map(rank => ({
     rank,
@@ -319,6 +344,114 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
               </Badge>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: RosterMember[]; allRanks: Rank[]; squads: AosSquad[]; deptColor: string }) {
+  const unassigned = roster.filter(m => !m.squadId || !squads.find(s => s.id === m.squadId));
+  
+  return (
+    <div className="space-y-6" data-testid="roster-tab">
+      {squads.map((squad) => {
+        const squadMembers = roster.filter(m => m.squadId === squad.id);
+        const rankGroups = allRanks
+          .map(rank => ({
+            rank,
+            members: squadMembers.filter(m => m.rankId === rank.id),
+          }))
+          .filter(g => g.members.length > 0);
+
+        return (
+          <div key={squad.id} className="rounded-lg border border-white/5 overflow-hidden" data-testid={`squad-section-${squad.id}`}>
+            <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/60 border-b border-white/10">
+              <Layers className="w-4 h-4" style={{ color: deptColor }} />
+              <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: deptColor }}>
+                {squad.name}
+              </h2>
+              <div className="flex-1 border-t border-white/5" />
+              <span className="text-xs text-muted-foreground">{squadMembers.length} members</span>
+            </div>
+
+            <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+              style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
+            >
+              <div>#</div>
+              <div>Member</div>
+              <div className="text-center">Rank</div>
+            </div>
+
+            {rankGroups.length > 0 ? rankGroups.map(({ rank, members }) => (
+              <div key={rank.id}>
+                <div className="flex items-center gap-3 px-4 py-1.5 bg-zinc-800/30 border-b border-white/5">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: rank.isLeadership ? deptColor : undefined }}>
+                    {rank.name}
+                  </h3>
+                  <div className="flex-1 border-t border-white/5" />
+                  <span className="text-[10px] text-muted-foreground">{members.length}</span>
+                </div>
+                {members.map((member, idx) => (
+                  <RosterTableRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} isPolice={false} />
+                ))}
+              </div>
+            )) : (
+              <div className="text-center py-6 text-sm text-muted-foreground">No members assigned to this squad.</div>
+            )}
+          </div>
+        );
+      })}
+
+      {unassigned.length > 0 && (
+        <div className="rounded-lg border border-white/5 overflow-hidden" data-testid="squad-section-unassigned">
+          <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/60 border-b border-white/10">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              Unassigned
+            </h2>
+            <div className="flex-1 border-t border-white/5" />
+            <span className="text-xs text-muted-foreground">{unassigned.length} members</span>
+          </div>
+
+          <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+            style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
+          >
+            <div>#</div>
+            <div>Member</div>
+            <div className="text-center">Rank</div>
+          </div>
+
+          {allRanks
+            .map(rank => ({
+              rank,
+              members: unassigned.filter(m => m.rankId === rank.id),
+            }))
+            .filter(g => g.members.length > 0)
+            .map(({ rank, members }) => (
+              <div key={rank.id}>
+                <div className="flex items-center gap-3 px-4 py-1.5 bg-zinc-800/30 border-b border-white/5">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: rank.isLeadership ? deptColor : undefined }}>
+                    {rank.name}
+                  </h3>
+                  <div className="flex-1 border-t border-white/5" />
+                  <span className="text-[10px] text-muted-foreground">{members.length}</span>
+                </div>
+                {members.map((member, idx) => (
+                  <RosterTableRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} isPolice={false} />
+                ))}
+              </div>
+            ))}
+        </div>
+      )}
+
+      {roster.length === 0 && (
+        <div className="text-center py-12">
+          <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">No roster members yet.</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Assign Discord Role IDs to department ranks to auto-populate the roster.
+          </p>
         </div>
       )}
     </div>
@@ -719,6 +852,8 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     discordRoleId: "",
   });
 
+  const isAos = code === "aos";
+
   const { data: ranksData, isLoading } = useQuery({
     queryKey: ["departmentRanks", code],
     queryFn: async () => {
@@ -888,6 +1023,285 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
             <p className="text-muted-foreground">No ranks configured. Add your first rank above.</p>
           </div>
         )}
+      </div>
+
+      {isAos && <AosSquadManagement deptColor={deptColor} />}
+    </div>
+  );
+}
+
+function AosSquadManagement({ deptColor }: { deptColor: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isAdding, setIsAdding] = useState(false);
+  const [newSquadName, setNewSquadName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const { data: squadsData, isLoading } = useQuery({
+    queryKey: ["aosSquads"],
+    queryFn: fetchAosSquads,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const squads = squadsData?.squads || [];
+      const res = await fetch("/api/aos/squads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name, priority: squads.length }),
+      });
+      if (!res.ok) throw new Error("Failed to create squad");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Squad Created" });
+      queryClient.invalidateQueries({ queryKey: ["aosSquads"] });
+      setIsAdding(false);
+      setNewSquadName("");
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not create squad.", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await fetch(`/api/aos/squads/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("Failed to update squad");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Squad Updated" });
+      queryClient.invalidateQueries({ queryKey: ["aosSquads"] });
+      setEditingId(null);
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not update squad.", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/aos/squads/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete squad");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Squad Deleted" });
+      queryClient.invalidateQueries({ queryKey: ["aosSquads"] });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not delete squad.", variant: "destructive" });
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-48" />;
+
+  const squads = squadsData?.squads || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold" style={{ color: deptColor }}>Squad Management</h2>
+          <p className="text-muted-foreground">Create and manage AOS squads. Members can be assigned to squads on the roster.</p>
+        </div>
+        <Button onClick={() => setIsAdding(true)} disabled={isAdding} data-testid="button-add-squad">
+          <Plus className="w-4 h-4 mr-2" /> Add Squad
+        </Button>
+      </div>
+
+      {isAdding && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Input
+                placeholder="Squad name (e.g. Alpha Squad)"
+                value={newSquadName}
+                onChange={(e) => setNewSquadName(e.target.value)}
+                className="flex-1"
+                data-testid="input-squad-name"
+                autoFocus
+              />
+              <Button
+                onClick={() => createMutation.mutate(newSquadName)}
+                disabled={!newSquadName.trim() || createMutation.isPending}
+                data-testid="button-save-squad"
+              >
+                <Check className="w-4 h-4 mr-1" /> Create
+              </Button>
+              <Button variant="outline" onClick={() => { setIsAdding(false); setNewSquadName(""); }}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-2">
+        {squads.map((squad) => (
+          <div key={squad.id} className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors" data-testid={`squad-row-${squad.id}`}>
+            <Layers className="w-5 h-5" style={{ color: deptColor }} />
+            {editingId === squad.id ? (
+              <>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="flex-1 h-8"
+                  data-testid={`input-edit-squad-${squad.id}`}
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  className="h-8"
+                  onClick={() => updateMutation.mutate({ id: squad.id, name: editName })}
+                  disabled={!editName.trim()}
+                  data-testid={`button-save-edit-squad-${squad.id}`}
+                >
+                  <Check className="w-3 h-3 mr-1" /> Save
+                </Button>
+                <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingId(null)}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 font-medium">{squad.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => { setEditingId(squad.id); setEditName(squad.name); }}
+                  data-testid={`button-edit-squad-${squad.id}`}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-red-400 hover:text-red-300"
+                  onClick={() => deleteMutation.mutate(squad.id)}
+                  data-testid={`button-delete-squad-${squad.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        ))}
+
+        {squads.length === 0 && !isAdding && (
+          <div className="text-center py-8">
+            <Layers className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No squads created yet.</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Create squads to organize your AOS roster by operational teams.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {squads.length > 0 && <AosSquadAssignments squads={squads} deptColor={deptColor} />}
+    </div>
+  );
+}
+
+function AosSquadAssignments({ squads, deptColor }: { squads: AosSquad[]; deptColor: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: rosterData, isLoading } = useQuery({
+    queryKey: ["roster", "aos"],
+    queryFn: () => fetchRoster("aos"),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async ({ memberId, squadId }: { memberId: string; squadId: string | null }) => {
+      const res = await fetch(`/api/departments/aos/roster/${memberId}/squad`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ squadId }),
+      });
+      if (!res.ok) throw new Error("Failed to assign squad");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Squad Assignment Updated" });
+      queryClient.invalidateQueries({ queryKey: ["roster", "aos"] });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not update squad assignment.", variant: "destructive" });
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-48" />;
+
+  const roster = rosterData?.roster || [];
+  const allRanks = rosterData?.ranks || [];
+
+  if (roster.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-bold" style={{ color: deptColor }}>Squad Assignments</h3>
+        <p className="text-muted-foreground text-sm">Assign roster members to squads</p>
+      </div>
+
+      <div className="rounded-lg border border-white/5 overflow-hidden">
+        <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+          style={{ gridTemplateColumns: "1fr 10rem 12rem" }}
+        >
+          <div>Member</div>
+          <div className="text-center">Rank</div>
+          <div className="text-center">Squad</div>
+        </div>
+
+        {roster.map((member) => {
+          const rank = allRanks.find(r => r.id === member.rankId);
+          if (!member.user) return null;
+          return (
+            <div key={member.id}
+              className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors"
+              style={{ gridTemplateColumns: "1fr 10rem 12rem" }}
+              data-testid={`squad-assign-row-${member.id}`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                  <img src={getAvatarUrl(member.user)} alt={member.user.username} className="w-full h-full object-cover" />
+                </div>
+                <span className="text-sm font-medium truncate">{member.user.username}</span>
+              </div>
+              <div className="text-center">
+                <span className="text-xs font-medium" style={{ color: deptColor }}>{rank?.name || "Unknown"}</span>
+              </div>
+              <div className="text-center">
+                <select
+                  value={member.squadId || ""}
+                  onChange={(e) => assignMutation.mutate({ memberId: member.id, squadId: e.target.value || null })}
+                  className="bg-zinc-800 border border-white/10 rounded-md px-2 py-1 text-xs w-full text-foreground"
+                  data-testid={`select-squad-${member.id}`}
+                >
+                  <option value="">Unassigned</option>
+                  {squads.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
