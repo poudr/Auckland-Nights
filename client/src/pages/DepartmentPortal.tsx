@@ -351,13 +351,62 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
 }
 
 function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: RosterMember[]; allRanks: Rank[]; squads: AosSquad[]; deptColor: string }) {
-  const unassigned = roster.filter(m => !m.squadId || !squads.find(s => s.id === m.squadId));
-  
+  const leadershipRanks = allRanks.filter(r => r.isLeadership);
+  const leadershipRankIds = new Set(leadershipRanks.map(r => r.id));
+  const leadershipMembers = roster.filter(m => leadershipRankIds.has(m.rankId));
+  const nonLeadershipRoster = roster.filter(m => !leadershipRankIds.has(m.rankId));
+  const unassigned = nonLeadershipRoster.filter(m => !m.squadId || !squads.find(s => s.id === m.squadId));
+
+  const rosterTableHeader = (
+    <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+      style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
+    >
+      <div>#</div>
+      <div>Member</div>
+      <div className="text-center">Rank</div>
+    </div>
+  );
+
   return (
     <div className="space-y-6" data-testid="roster-tab">
+      {leadershipMembers.length > 0 && (
+        <div className="rounded-lg border border-white/5 overflow-hidden" data-testid="squad-section-leadership">
+          <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/60 border-b border-white/10">
+            <Shield className="w-4 h-4" style={{ color: deptColor }} />
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: deptColor }}>
+              Leadership
+            </h2>
+            <div className="flex-1 border-t border-white/5" />
+            <span className="text-xs text-muted-foreground">{leadershipMembers.length} members</span>
+          </div>
+          {rosterTableHeader}
+          {leadershipRanks
+            .map(rank => ({
+              rank,
+              members: leadershipMembers.filter(m => m.rankId === rank.id),
+            }))
+            .filter(g => g.members.length > 0)
+            .map(({ rank, members }) => (
+              <div key={rank.id}>
+                <div className="flex items-center gap-3 px-4 py-1.5 bg-zinc-800/30 border-b border-white/5">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: deptColor }}>
+                    {rank.name}
+                  </h3>
+                  <div className="flex-1 border-t border-white/5" />
+                  <span className="text-[10px] text-muted-foreground">{members.length}</span>
+                </div>
+                {members.map((member, idx) => (
+                  <RosterTableRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} isPolice={false} />
+                ))}
+              </div>
+            ))}
+        </div>
+      )}
+
       {squads.map((squad) => {
-        const squadMembers = roster.filter(m => m.squadId === squad.id);
+        const squadMembers = nonLeadershipRoster.filter(m => m.squadId === squad.id);
         const rankGroups = allRanks
+          .filter(r => !r.isLeadership)
           .map(rank => ({
             rank,
             members: squadMembers.filter(m => m.rankId === rank.id),
@@ -374,19 +423,11 @@ function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: Roste
               <div className="flex-1 border-t border-white/5" />
               <span className="text-xs text-muted-foreground">{squadMembers.length} members</span>
             </div>
-
-            <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-              style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
-            >
-              <div>#</div>
-              <div>Member</div>
-              <div className="text-center">Rank</div>
-            </div>
-
+            {rosterTableHeader}
             {rankGroups.length > 0 ? rankGroups.map(({ rank, members }) => (
               <div key={rank.id}>
                 <div className="flex items-center gap-3 px-4 py-1.5 bg-zinc-800/30 border-b border-white/5">
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: rank.isLeadership ? deptColor : undefined }}>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest">
                     {rank.name}
                   </h3>
                   <div className="flex-1 border-t border-white/5" />
@@ -413,16 +454,9 @@ function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: Roste
             <div className="flex-1 border-t border-white/5" />
             <span className="text-xs text-muted-foreground">{unassigned.length} members</span>
           </div>
-
-          <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-            style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
-          >
-            <div>#</div>
-            <div>Member</div>
-            <div className="text-center">Rank</div>
-          </div>
-
+          {rosterTableHeader}
           {allRanks
+            .filter(r => !r.isLeadership)
             .map(rank => ({
               rank,
               members: unassigned.filter(m => m.rankId === rank.id),
@@ -431,7 +465,7 @@ function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: Roste
             .map(({ rank, members }) => (
               <div key={rank.id}>
                 <div className="flex items-center gap-3 px-4 py-1.5 bg-zinc-800/30 border-b border-white/5">
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: rank.isLeadership ? deptColor : undefined }}>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest">
                     {rank.name}
                   </h3>
                   <div className="flex-1 border-t border-white/5" />
@@ -756,7 +790,7 @@ function ApplicationsTab({ code, user }: { code: string; user: User }) {
   );
 }
 
-function RankRow({ rank, deptColor, onUpdate }: { rank: Rank; deptColor: string; onUpdate: (data: Record<string, unknown>) => void }) {
+function RankRow({ rank, deptColor, onUpdate, onDelete }: { rank: Rank; deptColor: string; onUpdate: (data: Record<string, unknown>) => void; onDelete: () => void }) {
   const [editing, setEditing] = useState(false);
   const [discordRoleId, setDiscordRoleId] = useState(rank.discordRoleId || "");
 
@@ -824,7 +858,7 @@ function RankRow({ rank, deptColor, onUpdate }: { rank: Rank; deptColor: string;
           <Badge variant="outline">Personnel</Badge>
         )}
       </div>
-      <div className="w-16 flex gap-1">
+      <div className="w-20 flex gap-1">
         <Button
           variant="ghost"
           size="icon"
@@ -833,6 +867,15 @@ function RankRow({ rank, deptColor, onUpdate }: { rank: Rank; deptColor: string;
           data-testid={`button-edit-rank-${rank.id}`}
         >
           <Edit className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-red-400 hover:text-red-300"
+          onClick={onDelete}
+          data-testid={`button-delete-rank-${rank.id}`}
+        >
+          <Trash2 className="w-4 h-4" />
         </Button>
       </div>
     </div>
@@ -902,6 +945,28 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     },
     onError: () => {
       toast({ title: "Failed", description: "Could not update rank.", variant: "destructive" });
+    },
+  });
+
+  const deleteRankMutation = useMutation({
+    mutationFn: async (rankId: string) => {
+      const res = await fetch(`/api/departments/${code}/ranks/${rankId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete rank");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Rank Deleted", description: "The rank has been removed." });
+      queryClient.invalidateQueries({ queryKey: ["departmentRanks", code] });
+      queryClient.invalidateQueries({ queryKey: ["roster", code] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Cannot Delete", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1010,11 +1075,11 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
           <div className="w-24 text-center">Prefix</div>
           <div className="w-40 text-center">Discord Role ID</div>
           <div className="w-24 text-center">Type</div>
-          <div className="w-16"></div>
+          <div className="w-20"></div>
         </div>
         
         {ranks.map((rank) => (
-          <RankRow key={rank.id} rank={rank} deptColor={deptColor} onUpdate={(data) => updateRankMutation.mutate({ rankId: rank.id, data })} />
+          <RankRow key={rank.id} rank={rank} deptColor={deptColor} onUpdate={(data) => updateRankMutation.mutate({ rankId: rank.id, data })} onDelete={() => deleteRankMutation.mutate(rank.id)} />
         ))}
         
         {ranks.length === 0 && (
@@ -1249,14 +1314,16 @@ function AosSquadAssignments({ squads, deptColor }: { squads: AosSquad[]; deptCo
 
   const roster = rosterData?.roster || [];
   const allRanks = rosterData?.ranks || [];
+  const leadershipRankIds = new Set(allRanks.filter(r => r.isLeadership).map(r => r.id));
+  const nonLeadershipRoster = roster.filter(m => !leadershipRankIds.has(m.rankId));
 
-  if (roster.length === 0) return null;
+  if (nonLeadershipRoster.length === 0) return null;
 
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-bold" style={{ color: deptColor }}>Squad Assignments</h3>
-        <p className="text-muted-foreground text-sm">Assign roster members to squads</p>
+        <p className="text-muted-foreground text-sm">Assign non-leadership roster members to squads</p>
       </div>
 
       <div className="rounded-lg border border-white/5 overflow-hidden">
@@ -1268,7 +1335,7 @@ function AosSquadAssignments({ squads, deptColor }: { squads: AosSquad[]; deptCo
           <div className="text-center">Squad</div>
         </div>
 
-        {roster.map((member) => {
+        {nonLeadershipRoster.map((member) => {
           const rank = allRanks.find(r => r.id === member.rankId);
           if (!member.user) return null;
           return (

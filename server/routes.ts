@@ -865,9 +865,22 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Leadership access required" });
       }
       
-      // Soft delete not available, just delete
-      // Note: This should probably check for roster members using this rank first
-      await storage.updateRank(req.params.rankId as string, { priority: -1 }); // Mark as deleted
+      const rankId = req.params.rankId as string;
+      const rank = await storage.getRank(rankId);
+      if (!rank) {
+        return res.status(404).json({ error: "Rank not found" });
+      }
+      if (rank.departmentCode !== code) {
+        return res.status(400).json({ error: "Rank does not belong to this department" });
+      }
+
+      const roster = await storage.getRosterByDepartment(code);
+      const membersUsingRank = roster.filter(m => m.rankId === rankId);
+      if (membersUsingRank.length > 0) {
+        return res.status(400).json({ error: `Cannot delete rank "${rank.name}" — ${membersUsingRank.length} roster member(s) are assigned to it. Reassign or remove them first.` });
+      }
+
+      await storage.deleteRank(rankId);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete rank" });

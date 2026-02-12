@@ -36,6 +36,7 @@ export interface IStorage {
   getRank(id: string): Promise<Rank | undefined>;
   createRank(rank: InsertRank): Promise<Rank>;
   updateRank(id: string, updates: Partial<InsertRank>): Promise<Rank | undefined>;
+  deleteRank(id: string): Promise<boolean>;
   
   // Roster
   getRosterByDepartment(departmentCode: string): Promise<RosterMember[]>;
@@ -171,6 +172,11 @@ export class DatabaseStorage implements IStorage {
   async updateRank(id: string, updates: Partial<InsertRank>): Promise<Rank | undefined> {
     const [updated] = await db.update(ranks).set(updates).where(eq(ranks.id, id)).returning();
     return updated;
+  }
+
+  async deleteRank(id: string): Promise<boolean> {
+    const result = await db.delete(ranks).where(eq(ranks.id, id)).returning();
+    return result.length > 0;
   }
 
   // ============ ROSTER ============
