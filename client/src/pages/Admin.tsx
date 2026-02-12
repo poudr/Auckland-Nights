@@ -27,7 +27,7 @@ const AVAILABLE_PERMISSIONS = [
   { id: "admin", label: "Admin", description: "Full admin access" },
   { id: "police", label: "Police", description: "Auckland Police Department portal" },
   { id: "fire", label: "Fire", description: "NZ Fire & Emergency portal" },
-  { id: "ems", label: "EMS", description: "St John Ambulance portal" },
+  { id: "ems", label: "EMS", description: "Emergency Ambulance Service portal" },
   { id: "aos", label: "AOS", description: "Armed Offenders Squad portal" },
 ] as const;
 

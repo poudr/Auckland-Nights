@@ -14,6 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
+import policeBanner from "@assets/police_1770891742345.png";
+import fireBanner from "@assets/fire_1770891742346.png";
+import emsBanner from "@assets/ems_1770891742345.png";
 import { fireSopSections } from "@/data/sop-fire";
 import { emsSopSections } from "@/data/sop-ems";
 import type { SOPSection, SOPContentBlock } from "@/data/sop-fire";
@@ -26,6 +29,12 @@ interface Department {
   icon: string;
   description: string | null;
 }
+
+const DEPARTMENT_BANNERS: Record<string, string> = {
+  police: policeBanner,
+  fire: fireBanner,
+  ems: emsBanner,
+};
 
 interface Rank {
   id: string;
@@ -198,6 +207,22 @@ export default function DepartmentPortal() {
               </div>
             </motion.header>
           ) : null}
+
+          {DEPARTMENT_BANNERS[code] && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mb-8 rounded-xl overflow-hidden border border-white/10"
+              data-testid={`banner-${code}`}
+            >
+              <img
+                src={DEPARTMENT_BANNERS[code]}
+                alt={`${department?.name || code} banner`}
+                className="w-full h-auto object-cover"
+              />
+            </motion.div>
+          )}
 
           <Tabs value={activeTab} className="w-full">
             <TabsList className="bg-zinc-900/50 border border-white/5 mb-8">

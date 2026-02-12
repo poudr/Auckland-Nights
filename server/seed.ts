@@ -15,7 +15,7 @@ export async function seedDatabase() {
   await db.insert(departments).values([
     { code: "police", name: "Auckland Police Department", color: "#3B82F6", icon: "Shield", description: "Serving and protecting the citizens of Tamaki Makaurau." },
     { code: "fire", name: "NZ Fire & Emergency", color: "#EF4444", icon: "Flame", description: "Emergency fire response and rescue operations." },
-    { code: "ems", name: "St John Ambulance", color: "#22C55E", icon: "HeartPulse", description: "Providing world-class emergency medical care." },
+    { code: "ems", name: "Emergency Ambulance Service", color: "#22C55E", icon: "HeartPulse", description: "Providing world-class emergency medical care." },
     { code: "aos", name: "Armed Offenders Squad (AOS)", color: "#8B5CF6", icon: "Target", description: "Special operations and tactical response unit." },
   ]);
 
