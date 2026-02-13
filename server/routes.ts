@@ -104,6 +104,7 @@ export async function registerRoutes(
       const roleMappings = await storage.getRoleMappings();
       const allWebsiteRoleDefs = await storage.getWebsiteRoles();
       const websiteRoles: string[] = [];
+      const collectedTiers: string[] = [];
       let staffTier: string | null = null;
       let isStaff = false;
 
@@ -114,7 +115,10 @@ export async function registerRoutes(
           websiteRoles.push(...permissions);
           if (mapping.staffTier) {
             isStaff = true;
-            if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
+            collectedTiers.push(mapping.staffTier);
+            const idx = STAFF_HIERARCHY.indexOf(mapping.staffTier as any);
+            const curIdx = staffTier ? STAFF_HIERARCHY.indexOf(staffTier as any) : -1;
+            if (idx !== -1 && (curIdx === -1 || idx < curIdx)) {
               staffTier = mapping.staffTier;
             }
           }
@@ -127,7 +131,10 @@ export async function registerRoutes(
           }
           if (wsRole.staffTier) {
             isStaff = true;
-            if (!staffTier || STAFF_HIERARCHY.indexOf(wsRole.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
+            collectedTiers.push(wsRole.staffTier);
+            const idx = STAFF_HIERARCHY.indexOf(wsRole.staffTier as any);
+            const curIdx = staffTier ? STAFF_HIERARCHY.indexOf(staffTier as any) : -1;
+            if (idx !== -1 && (curIdx === -1 || idx < curIdx)) {
               staffTier = wsRole.staffTier;
             }
           }
@@ -139,6 +146,7 @@ export async function registerRoutes(
         websiteRoles: Array.from(new Set(websiteRoles)),
         isStaff,
         staffTier,
+        staffTiers: Array.from(new Set(collectedTiers)),
       });
 
       if (!updatedUser) {
@@ -172,6 +180,7 @@ export async function registerRoutes(
             avatar: member.avatar,
             discordId: member.discordId,
             staffTier: member.staffTier,
+            staffTiers: member.staffTiers || [member.staffTier],
           });
         }
       }
@@ -467,6 +476,7 @@ export async function registerRoutes(
             const newRoles = memberData.roles || [];
             
             const websiteRolesArr: string[] = [];
+            const collectedTiers: string[] = [];
             let staffTier: string | null = null;
             let isStaff = false;
 
@@ -477,7 +487,10 @@ export async function registerRoutes(
                 websiteRolesArr.push(...permissions);
                 if (mapping.staffTier) {
                   isStaff = true;
-                  if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
+                  collectedTiers.push(mapping.staffTier);
+                  const idx = STAFF_HIERARCHY.indexOf(mapping.staffTier as any);
+                  const curIdx = staffTier ? STAFF_HIERARCHY.indexOf(staffTier as any) : -1;
+                  if (idx !== -1 && (curIdx === -1 || idx < curIdx)) {
                     staffTier = mapping.staffTier;
                   }
                 }
@@ -490,7 +503,10 @@ export async function registerRoutes(
                 }
                 if (wsRole.staffTier) {
                   isStaff = true;
-                  if (!staffTier || STAFF_HIERARCHY.indexOf(wsRole.staffTier as any) < STAFF_HIERARCHY.indexOf(staffTier as any)) {
+                  collectedTiers.push(wsRole.staffTier);
+                  const idx = STAFF_HIERARCHY.indexOf(wsRole.staffTier as any);
+                  const curIdx = staffTier ? STAFF_HIERARCHY.indexOf(staffTier as any) : -1;
+                  if (idx !== -1 && (curIdx === -1 || idx < curIdx)) {
                     staffTier = wsRole.staffTier;
                   }
                 }
@@ -502,6 +518,7 @@ export async function registerRoutes(
               websiteRoles: Array.from(new Set(websiteRolesArr)),
               isStaff,
               staffTier,
+              staffTiers: Array.from(new Set(collectedTiers)),
             });
             synced++;
           } else {

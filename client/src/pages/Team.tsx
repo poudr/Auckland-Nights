@@ -12,6 +12,7 @@ interface TeamMember {
   avatar: string | null;
   discordId: string;
   staffTier: string;
+  staffTiers: string[];
 }
 
 interface TeamData {
@@ -28,6 +29,19 @@ const TIER_CONFIG: Record<string, { label: string; hex: string }> = {
   support: { label: "Support Team", hex: "#02db3c" },
   development: { label: "Development Team", hex: "#1abc9c" },
 };
+
+function getTierBadgeLabel(tier: string): string {
+  const labels: Record<string, string> = {
+    director: "Director",
+    executive: "Executive",
+    manager: "Manager",
+    administrator: "Administrator",
+    moderator: "Moderator",
+    support: "Support",
+    development: "Development",
+  };
+  return labels[tier] || tier;
+}
 
 async function fetchTeam(): Promise<TeamData> {
   const res = await fetch("/api/team");
@@ -114,9 +128,16 @@ export default function Team() {
                                 />
                               </div>
                               <h3 className="font-bold text-lg mb-1">{member.username}</h3>
-                              <Badge variant="secondary" className="bg-transparent text-xs" style={{ color: config.hex, borderColor: `${config.hex}4d` }}>
-                                {config.label.replace("s", "").replace(" Team", "")}
-                              </Badge>
+                              <div className="flex flex-wrap justify-center gap-1">
+                                {(member.staffTiers && member.staffTiers.length > 0 ? member.staffTiers : [member.staffTier]).map((t) => {
+                                  const tierConf = TIER_CONFIG[t] || { label: t, hex: "#9ca3af" };
+                                  return (
+                                    <Badge key={t} variant="secondary" className="bg-transparent text-xs" style={{ color: tierConf.hex, borderColor: `${tierConf.hex}4d` }}>
+                                      {getTierBadgeLabel(t)}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
                             </CardContent>
                           </Card>
                         </motion.div>

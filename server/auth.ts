@@ -4,6 +4,7 @@ import type { Express, RequestHandler } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { storage } from "./storage";
+import { STAFF_HIERARCHY } from "@shared/schema";
 import type { User } from "@shared/schema";
 
 declare global {
@@ -19,6 +20,7 @@ declare global {
       websiteRoles: string[] | null;
       isStaff: boolean | null;
       staffTier: string | null;
+      staffTiers: string[] | null;
       accessToken: string | null;
       refreshToken: string | null;
       createdAt: Date | null;
@@ -107,11 +109,10 @@ export function setupAuth(app: Express) {
               }
             }
 
-            // Resolve permissions from Discord roles
-            const STAFF_HIERARCHY = ["director", "executive", "manager", "administrator", "moderator", "support"];
             const roleMappings = await storage.getRoleMappings();
             const allWebsiteRoleDefs = await storage.getWebsiteRoles();
             const websitePermissions: string[] = [];
+            const collectedTiers: string[] = [];
             let staffTier: string | null = null;
             let isStaff = false;
 
@@ -122,7 +123,10 @@ export function setupAuth(app: Express) {
                 websitePermissions.push(...permissions);
                 if (mapping.staffTier) {
                   isStaff = true;
-                  if (!staffTier || STAFF_HIERARCHY.indexOf(mapping.staffTier) < STAFF_HIERARCHY.indexOf(staffTier)) {
+                  collectedTiers.push(mapping.staffTier);
+                  const idx = STAFF_HIERARCHY.indexOf(mapping.staffTier as any);
+                  const curIdx = staffTier ? STAFF_HIERARCHY.indexOf(staffTier as any) : -1;
+                  if (idx !== -1 && (curIdx === -1 || idx < curIdx)) {
                     staffTier = mapping.staffTier;
                   }
                 }
@@ -135,7 +139,10 @@ export function setupAuth(app: Express) {
                 }
                 if (wsRole.staffTier) {
                   isStaff = true;
-                  if (!staffTier || STAFF_HIERARCHY.indexOf(wsRole.staffTier) < STAFF_HIERARCHY.indexOf(staffTier)) {
+                  collectedTiers.push(wsRole.staffTier);
+                  const idx = STAFF_HIERARCHY.indexOf(wsRole.staffTier as any);
+                  const curIdx = staffTier ? STAFF_HIERARCHY.indexOf(staffTier as any) : -1;
+                  if (idx !== -1 && (curIdx === -1 || idx < curIdx)) {
                     staffTier = wsRole.staffTier;
                   }
                 }
@@ -143,6 +150,7 @@ export function setupAuth(app: Express) {
             }
 
             const uniquePermissions = Array.from(new Set(websitePermissions));
+            const uniqueTiers = Array.from(new Set(collectedTiers));
 
             // Check if user exists
             let user = await storage.getUserByDiscordId(profile.id);
@@ -157,6 +165,7 @@ export function setupAuth(app: Express) {
                 websiteRoles: uniquePermissions,
                 isStaff,
                 staffTier,
+                staffTiers: uniqueTiers,
                 accessToken,
                 refreshToken,
               });
@@ -171,6 +180,7 @@ export function setupAuth(app: Express) {
                 websiteRoles: uniquePermissions,
                 isStaff,
                 staffTier,
+                staffTiers: uniqueTiers,
                 accessToken,
                 refreshToken,
               });

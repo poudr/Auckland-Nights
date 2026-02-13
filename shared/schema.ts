@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   websiteRoles: text("website_roles").array().default(sql`'{}'::text[]`), // Mapped website permissions
   isStaff: boolean("is_staff").default(false),
   staffTier: text("staff_tier"), // director, executive, manager, administrator, moderator, support, development
+  staffTiers: text("staff_tiers").array().default(sql`'{}'::text[]`), // All staff tiers the user belongs to
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   createdAt: timestamp("created_at").defaultNow(),
