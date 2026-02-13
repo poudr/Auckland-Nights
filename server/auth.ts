@@ -2,6 +2,7 @@ import passport from "passport";
 import { Strategy as DiscordStrategy } from "passport-discord";
 import type { Express, RequestHandler } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { storage } from "./storage";
 import type { User } from "@shared/schema";
 
@@ -37,8 +38,14 @@ export function setupAuth(app: Express) {
     throw new Error("SESSION_SECRET must be set in production");
   }
   
-  // Session configuration
+  const PgStore = connectPgSimple(session);
+
   const sessionSettings: session.SessionOptions = {
+    store: new PgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+      tableName: "session",
+    }),
     secret: sessionSecret || "dev-only-secret-change-in-production",
     resave: false,
     saveUninitialized: false,
