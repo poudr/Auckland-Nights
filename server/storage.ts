@@ -3,7 +3,11 @@ import {
   type Department, type InsertDepartment,
   type Rank, type InsertRank,
   type RosterMember, type InsertRosterMember,
-  type Application, type InsertApplication,
+  type ApplicationForm, type InsertApplicationForm,
+  type ApplicationQuestion, type InsertApplicationQuestion,
+  type ApplicationSubmission, type InsertApplicationSubmission,
+  type ApplicationMessage, type InsertApplicationMessage,
+  type Notification, type InsertNotification,
   type Sop, type InsertSop,
   type RoleMapping, type InsertRoleMapping,
   type AdminSetting, type InsertAdminSetting,
@@ -11,7 +15,7 @@ import {
   type WebsiteRole, type InsertWebsiteRole,
   type UserRoleAssignment, type InsertUserRoleAssignment,
   type AosSquad, type InsertAosSquad,
-  users, departments, ranks, rosterMembers, applications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads
+  users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc } from "drizzle-orm";
@@ -46,11 +50,37 @@ export interface IStorage {
   updateRosterMember(id: string, updates: Partial<InsertRosterMember>): Promise<RosterMember | undefined>;
   getNextCallsignNumber(departmentCode: string, rankId: string): Promise<number>;
   
-  // Applications
-  getApplicationsByDepartment(departmentCode: string): Promise<Application[]>;
-  getApplicationsByUser(userId: string): Promise<Application[]>;
-  createApplication(app: InsertApplication): Promise<Application>;
-  updateApplication(id: string, updates: Partial<InsertApplication>): Promise<Application | undefined>;
+  // Application Forms
+  getApplicationFormsByDepartment(departmentCode: string): Promise<ApplicationForm[]>;
+  getApplicationForm(id: string): Promise<ApplicationForm | undefined>;
+  createApplicationForm(form: InsertApplicationForm): Promise<ApplicationForm>;
+  updateApplicationForm(id: string, updates: Partial<InsertApplicationForm>): Promise<ApplicationForm | undefined>;
+  deleteApplicationForm(id: string): Promise<void>;
+
+  // Application Questions
+  getQuestionsByForm(formId: string): Promise<ApplicationQuestion[]>;
+  createApplicationQuestion(question: InsertApplicationQuestion): Promise<ApplicationQuestion>;
+  updateApplicationQuestion(id: string, updates: Partial<InsertApplicationQuestion>): Promise<ApplicationQuestion | undefined>;
+  deleteApplicationQuestion(id: string): Promise<void>;
+  deleteQuestionsByForm(formId: string): Promise<void>;
+
+  // Application Submissions
+  getSubmissionsByDepartment(departmentCode: string): Promise<ApplicationSubmission[]>;
+  getSubmissionsByUser(userId: string): Promise<ApplicationSubmission[]>;
+  getSubmission(id: string): Promise<ApplicationSubmission | undefined>;
+  createSubmission(submission: InsertApplicationSubmission): Promise<ApplicationSubmission>;
+  updateSubmission(id: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined>;
+
+  // Application Messages
+  getMessagesBySubmission(submissionId: string): Promise<ApplicationMessage[]>;
+  createMessage(message: InsertApplicationMessage): Promise<ApplicationMessage>;
+
+  // Notifications
+  getNotificationsByUser(userId: string): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
   
   // SOPs
   getSopsByDepartment(departmentCode: string): Promise<Sop[]>;
@@ -226,30 +256,127 @@ export class DatabaseStorage implements IStorage {
     return nextNumber;
   }
 
-  // ============ APPLICATIONS ============
-  async getApplicationsByDepartment(departmentCode: string): Promise<Application[]> {
-    return await db.select().from(applications)
-      .where(eq(applications.departmentCode, departmentCode))
-      .orderBy(desc(applications.createdAt));
+  // ============ APPLICATION FORMS ============
+  async getApplicationFormsByDepartment(departmentCode: string): Promise<ApplicationForm[]> {
+    return await db.select().from(applicationForms)
+      .where(eq(applicationForms.departmentCode, departmentCode))
+      .orderBy(desc(applicationForms.createdAt));
   }
 
-  async getApplicationsByUser(userId: string): Promise<Application[]> {
-    return await db.select().from(applications)
-      .where(eq(applications.userId, userId))
-      .orderBy(desc(applications.createdAt));
+  async getApplicationForm(id: string): Promise<ApplicationForm | undefined> {
+    const [form] = await db.select().from(applicationForms).where(eq(applicationForms.id, id));
+    return form;
   }
 
-  async createApplication(app: InsertApplication): Promise<Application> {
-    const [created] = await db.insert(applications).values(app).returning();
+  async createApplicationForm(form: InsertApplicationForm): Promise<ApplicationForm> {
+    const [created] = await db.insert(applicationForms).values(form).returning();
     return created;
   }
 
-  async updateApplication(id: string, updates: Partial<InsertApplication>): Promise<Application | undefined> {
-    const [updated] = await db.update(applications)
+  async updateApplicationForm(id: string, updates: Partial<InsertApplicationForm>): Promise<ApplicationForm | undefined> {
+    const [updated] = await db.update(applicationForms)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(applications.id, id))
+      .where(eq(applicationForms.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteApplicationForm(id: string): Promise<void> {
+    await db.update(applicationForms).set({ isActive: false }).where(eq(applicationForms.id, id));
+  }
+
+  // ============ APPLICATION QUESTIONS ============
+  async getQuestionsByForm(formId: string): Promise<ApplicationQuestion[]> {
+    return await db.select().from(applicationQuestions)
+      .where(eq(applicationQuestions.formId, formId))
+      .orderBy(asc(applicationQuestions.priority));
+  }
+
+  async createApplicationQuestion(question: InsertApplicationQuestion): Promise<ApplicationQuestion> {
+    const [created] = await db.insert(applicationQuestions).values(question).returning();
+    return created;
+  }
+
+  async updateApplicationQuestion(id: string, updates: Partial<InsertApplicationQuestion>): Promise<ApplicationQuestion | undefined> {
+    const [updated] = await db.update(applicationQuestions).set(updates).where(eq(applicationQuestions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteApplicationQuestion(id: string): Promise<void> {
+    await db.delete(applicationQuestions).where(eq(applicationQuestions.id, id));
+  }
+
+  async deleteQuestionsByForm(formId: string): Promise<void> {
+    await db.delete(applicationQuestions).where(eq(applicationQuestions.formId, formId));
+  }
+
+  // ============ APPLICATION SUBMISSIONS ============
+  async getSubmissionsByDepartment(departmentCode: string): Promise<ApplicationSubmission[]> {
+    return await db.select().from(applicationSubmissions)
+      .where(eq(applicationSubmissions.departmentCode, departmentCode))
+      .orderBy(desc(applicationSubmissions.createdAt));
+  }
+
+  async getSubmissionsByUser(userId: string): Promise<ApplicationSubmission[]> {
+    return await db.select().from(applicationSubmissions)
+      .where(eq(applicationSubmissions.userId, userId))
+      .orderBy(desc(applicationSubmissions.createdAt));
+  }
+
+  async getSubmission(id: string): Promise<ApplicationSubmission | undefined> {
+    const [sub] = await db.select().from(applicationSubmissions).where(eq(applicationSubmissions.id, id));
+    return sub;
+  }
+
+  async createSubmission(submission: InsertApplicationSubmission): Promise<ApplicationSubmission> {
+    const [created] = await db.insert(applicationSubmissions).values(submission).returning();
+    return created;
+  }
+
+  async updateSubmission(id: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined> {
+    const [updated] = await db.update(applicationSubmissions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(applicationSubmissions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ============ APPLICATION MESSAGES ============
+  async getMessagesBySubmission(submissionId: string): Promise<ApplicationMessage[]> {
+    return await db.select().from(applicationMessages)
+      .where(eq(applicationMessages.submissionId, submissionId))
+      .orderBy(asc(applicationMessages.createdAt));
+  }
+
+  async createMessage(message: InsertApplicationMessage): Promise<ApplicationMessage> {
+    const [created] = await db.insert(applicationMessages).values(message).returning();
+    return created;
+  }
+
+  // ============ NOTIFICATIONS ============
+  async getNotificationsByUser(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const result = await db.select().from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return result.length;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db.insert(notifications).values(notification).returning();
+    return created;
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
   }
 
   // ============ SOPs ============

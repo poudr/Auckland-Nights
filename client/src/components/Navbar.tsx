@@ -2,11 +2,113 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { Shield, User, LogOut, RefreshCw, Menu, X, Settings, Home } from "lucide-react";
-import { Link } from "wouter";
+import { Shield, User, LogOut, RefreshCw, Menu, X, Settings, Home, Bell, CheckCheck } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useUser, useLogout, useSyncRoles, useAuthStatus, getAvatarUrl, loginWithDiscord, hasPermission } from "@/lib/auth";
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import tmrpLogo from "@/assets/tmrp-logo.jpg";
+
+interface NotificationData {
+  id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  link: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+function NotificationBell() {
+  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+
+  const { data } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications", { credentials: "include" });
+      if (!res.ok) return { notifications: [], unreadCount: 0 };
+      return res.json() as Promise<{ notifications: NotificationData[]; unreadCount: number }>;
+    },
+    refetchInterval: 15000,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/notifications/${id}/read`, { method: "POST", credentials: "include" });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      await fetch("/api/notifications/read-all", { method: "POST", credentials: "include" });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+
+  const unreadCount = data?.unreadCount || 0;
+  const notifs = data?.notifications || [];
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
+          <Bell className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-primary text-black text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1" data-testid="notification-count">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+        <div className="flex items-center justify-between px-3 py-2">
+          <span className="font-semibold text-sm">Notifications</span>
+          {unreadCount > 0 && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => markAllReadMutation.mutate()} data-testid="button-mark-all-read">
+              <CheckCheck className="w-3 h-3" /> Mark all read
+            </Button>
+          )}
+        </div>
+        <DropdownMenuSeparator />
+        {notifs.length === 0 ? (
+          <div className="px-3 py-6 text-center text-sm text-muted-foreground">No notifications</div>
+        ) : (
+          notifs.slice(0, 20).map((n) => (
+            <DropdownMenuItem
+              key={n.id}
+              className={`flex flex-col items-start gap-1 px-3 py-2 cursor-pointer ${!n.isRead ? "bg-primary/5" : ""}`}
+              onClick={() => {
+                if (!n.isRead) markReadMutation.mutate(n.id);
+                if (n.link) setLocation(n.link);
+              }}
+              data-testid={`notification-${n.id}`}
+            >
+              <div className="flex items-center gap-2 w-full">
+                {!n.isRead && <div className="w-2 h-2 rounded-full bg-primary shrink-0" />}
+                <span className="font-medium text-sm truncate flex-1">{n.title}</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(n.createdAt)}</span>
+              </div>
+              {n.message && <p className="text-xs text-muted-foreground line-clamp-2 pl-4">{n.message}</p>}
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function Navbar() {
   const { data: user, isLoading } = useUser();
@@ -41,7 +143,8 @@ export default function Navbar() {
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {!isLoading && user && <NotificationBell />}
           {isLoading ? (
             <Button variant="outline" disabled>
               <RefreshCw className="animate-spin" size={18} />

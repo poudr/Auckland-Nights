@@ -338,29 +338,366 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/departments/:code/applications", isAuthenticated, async (req, res) => {
+  // ============ APPLICATION FORM ROUTES ============
+
+  app.get("/api/departments/:code/forms", isAuthenticated, async (req, res) => {
     try {
       const code = req.params.code as string;
-      const applications = await storage.getApplicationsByDepartment(code);
-      res.json({ applications });
+      const forms = await storage.getApplicationFormsByDepartment(code);
+      const activeForms = forms.filter(f => f.isActive);
+      res.json({ forms: activeForms });
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch applications" });
+      res.status(500).json({ error: "Failed to fetch forms" });
     }
   });
 
-  app.post("/api/departments/:code/applications", isAuthenticated, async (req, res) => {
+  app.get("/api/forms/:id", isAuthenticated, async (req, res) => {
     try {
-      const code = req.params.code as string;
-      const application = await storage.createApplication({
-        userId: req.user!.id,
-        departmentCode: code,
-        type: req.body.type,
-        formData: JSON.stringify(req.body.formData),
-        status: "pending",
-      });
-      res.json({ application });
+      const form = await storage.getApplicationForm(req.params.id);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+      const questions = await storage.getQuestionsByForm(form.id);
+      res.json({ form, questions });
     } catch (error) {
-      res.status(500).json({ error: "Failed to create application" });
+      res.status(500).json({ error: "Failed to fetch form" });
+    }
+  });
+
+  app.post("/api/departments/:code/forms", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only leadership can create forms" });
+      }
+
+      const code = req.params.code as string;
+      const { title, description, questions } = req.body;
+
+      const form = await storage.createApplicationForm({
+        departmentCode: code,
+        title,
+        description: description || null,
+        createdBy: user.id,
+        isActive: true,
+      });
+
+      if (questions && Array.isArray(questions)) {
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i];
+          await storage.createApplicationQuestion({
+            formId: form.id,
+            label: q.label,
+            type: q.type,
+            options: q.options ? JSON.stringify(q.options) : null,
+            isRequired: q.isRequired !== false,
+            priority: i,
+          });
+        }
+      }
+
+      const createdQuestions = await storage.getQuestionsByForm(form.id);
+      res.json({ form, questions: createdQuestions });
+    } catch (error) {
+      console.error("Create form error:", error);
+      res.status(500).json({ error: "Failed to create form" });
+    }
+  });
+
+  app.put("/api/forms/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only leadership can edit forms" });
+      }
+
+      const { title, description, questions } = req.body;
+      const form = await storage.updateApplicationForm(req.params.id, { title, description });
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      if (questions && Array.isArray(questions)) {
+        await storage.deleteQuestionsByForm(form.id);
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i];
+          await storage.createApplicationQuestion({
+            formId: form.id,
+            label: q.label,
+            type: q.type,
+            options: q.options ? JSON.stringify(q.options) : null,
+            isRequired: q.isRequired !== false,
+            priority: i,
+          });
+        }
+      }
+
+      const updatedQuestions = await storage.getQuestionsByForm(form.id);
+      res.json({ form, questions: updatedQuestions });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update form" });
+    }
+  });
+
+  app.delete("/api/forms/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only leadership can delete forms" });
+      }
+      await storage.deleteApplicationForm(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete form" });
+    }
+  });
+
+  // ============ APPLICATION SUBMISSION ROUTES ============
+
+  app.get("/api/departments/:code/submissions", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const code = req.params.code as string;
+      const tier = user.staffTier;
+      const isLeadership = tier && ["director", "executive", "manager"].includes(tier);
+
+      if (isLeadership) {
+        const submissions = await storage.getSubmissionsByDepartment(code);
+        const enriched = await Promise.all(submissions.map(async (sub) => {
+          const form = await storage.getApplicationForm(sub.formId);
+          const submitter = await storage.getUser(sub.userId);
+          return {
+            ...sub,
+            formTitle: form?.title || "Unknown Form",
+            username: submitter?.username || "Unknown",
+            avatar: submitter?.avatar || null,
+            discordId: submitter?.discordId || "",
+          };
+        }));
+        return res.json({ submissions: enriched });
+      }
+
+      const submissions = await storage.getSubmissionsByUser(user.id);
+      const deptSubmissions = submissions.filter(s => s.departmentCode === code);
+      const enriched = await Promise.all(deptSubmissions.map(async (sub) => {
+        const form = await storage.getApplicationForm(sub.formId);
+        return {
+          ...sub,
+          formTitle: form?.title || "Unknown Form",
+          username: user.username,
+          avatar: user.avatar,
+          discordId: user.discordId,
+        };
+      }));
+      res.json({ submissions: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submissions" });
+    }
+  });
+
+  app.get("/api/submissions/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const submission = await storage.getSubmission(req.params.id);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const tier = user.staffTier;
+      const isLeadership = tier && ["director", "executive", "manager"].includes(tier);
+      if (submission.userId !== user.id && !isLeadership) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const form = await storage.getApplicationForm(submission.formId);
+      const questions = form ? await storage.getQuestionsByForm(form.id) : [];
+      const messages = await storage.getMessagesBySubmission(submission.id);
+      const submitter = await storage.getUser(submission.userId);
+
+      const enrichedMessages = await Promise.all(messages.map(async (msg) => {
+        const sender = await storage.getUser(msg.userId);
+        return {
+          ...msg,
+          username: sender?.username || "Unknown",
+          avatar: sender?.avatar || null,
+          discordId: sender?.discordId || "",
+          staffTier: sender?.staffTier || null,
+        };
+      }));
+
+      res.json({
+        submission,
+        form,
+        questions,
+        messages: enrichedMessages,
+        submitter: submitter ? { username: submitter.username, avatar: submitter.avatar, discordId: submitter.discordId } : null,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submission" });
+    }
+  });
+
+  app.post("/api/departments/:code/submissions", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const code = req.params.code as string;
+      const { formId, answers } = req.body;
+
+      const submission = await storage.createSubmission({
+        formId,
+        userId: user.id,
+        departmentCode: code,
+        status: "pending",
+        answers: JSON.stringify(answers),
+      });
+
+      const form = await storage.getApplicationForm(formId);
+      const dept = await storage.getDepartment(code);
+
+      const leadershipUsers = await storage.getAllUsers();
+      const leaders = leadershipUsers.filter(u =>
+        u.staffTier && ["director", "executive", "manager"].includes(u.staffTier)
+      );
+
+      for (const leader of leaders) {
+        await storage.createNotification({
+          userId: leader.id,
+          type: "application_submitted",
+          title: "New Application",
+          message: `${user.username} submitted an application for ${dept?.name || code}: ${form?.title || "Unknown"}`,
+          link: `/departments/${code}/applications`,
+          relatedId: submission.id,
+          isRead: false,
+        });
+      }
+
+      res.json({ submission });
+    } catch (error) {
+      console.error("Submit application error:", error);
+      res.status(500).json({ error: "Failed to submit application" });
+    }
+  });
+
+  app.put("/api/submissions/:id/status", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only leadership can change status" });
+      }
+
+      const { status } = req.body;
+      const submission = await storage.updateSubmission(req.params.id, { status });
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const form = await storage.getApplicationForm(submission.formId);
+      const dept = await storage.getDepartment(submission.departmentCode);
+
+      await storage.createNotification({
+        userId: submission.userId,
+        type: "status_change",
+        title: "Application Updated",
+        message: `Your application for ${dept?.name || submission.departmentCode} (${form?.title || ""}) has been ${status}.`,
+        link: `/departments/${submission.departmentCode}/applications`,
+        relatedId: submission.id,
+        isRead: false,
+      });
+
+      res.json({ submission });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+
+  // ============ APPLICATION MESSAGE ROUTES ============
+
+  app.post("/api/submissions/:id/messages", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const submission = await storage.getSubmission(req.params.id);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const tier = user.staffTier;
+      const isLeadership = tier && ["director", "executive", "manager"].includes(tier);
+      if (submission.userId !== user.id && !isLeadership) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const message = await storage.createMessage({
+        submissionId: submission.id,
+        userId: user.id,
+        content: req.body.content,
+      });
+
+      const form = await storage.getApplicationForm(submission.formId);
+      const dept = await storage.getDepartment(submission.departmentCode);
+
+      if (isLeadership && submission.userId !== user.id) {
+        await storage.createNotification({
+          userId: submission.userId,
+          type: "application_response",
+          title: "Application Response",
+          message: `${user.username} responded to your ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
+          link: `/departments/${submission.departmentCode}/applications`,
+          relatedId: submission.id,
+          isRead: false,
+        });
+      } else if (!isLeadership) {
+        const leadershipUsers = await storage.getAllUsers();
+        const leaders = leadershipUsers.filter(u =>
+          u.staffTier && ["director", "executive", "manager"].includes(u.staffTier)
+        );
+        for (const leader of leaders) {
+          await storage.createNotification({
+            userId: leader.id,
+            type: "application_response",
+            title: "Application Reply",
+            message: `${user.username} replied to their ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
+            link: `/departments/${submission.departmentCode}/applications`,
+            relatedId: submission.id,
+            isRead: false,
+          });
+        }
+      }
+
+      res.json({
+        ...message,
+        username: user.username,
+        avatar: user.avatar,
+        discordId: user.discordId,
+        staffTier: user.staffTier,
+      });
+    } catch (error) {
+      console.error("Send message error:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // ============ NOTIFICATION ROUTES ============
+
+  app.get("/api/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const notifs = await storage.getNotificationsByUser(user.id);
+      const count = await storage.getUnreadNotificationCount(user.id);
+      res.json({ notifications: notifs.slice(0, 50), unreadCount: count });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.post("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      await storage.markNotificationRead(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark notification read" });
+    }
+  });
+
+  app.post("/api/notifications/read-all", isAuthenticated, async (req, res) => {
+    try {
+      await storage.markAllNotificationsRead(req.user!.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark all read" });
     }
   });
 

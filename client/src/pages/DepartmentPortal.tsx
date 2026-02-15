@@ -118,8 +118,12 @@ async function checkAccess(code: string): Promise<AccessData> {
 
 export default function DepartmentPortal() {
   const [, params] = useRoute("/departments/:code/:tab?");
-  const code = params?.code || "";
+  const rawCode = params?.code || "";
   const activeTab = params?.tab || "roster";
+  
+  const isPolicePortal = rawCode === "police";
+  const [activeSection, setActiveSection] = useState<"police" | "aos">("police");
+  const code = isPolicePortal ? activeSection : rawCode;
   
   const { data: user, isLoading: userLoading } = useUser();
   
@@ -128,6 +132,14 @@ export default function DepartmentPortal() {
     queryFn: () => checkAccess(code),
     enabled: !!user && !!code,
   });
+
+  const { data: aosAccessData } = useQuery<AccessData>({
+    queryKey: ["departmentAccess", "aos"],
+    queryFn: () => checkAccess("aos"),
+    enabled: !!user && isPolicePortal,
+  });
+
+  const hasAosAccess = aosAccessData?.hasAccess || user?.staffTier === "director" || user?.staffTier === "executive" || false;
   
   const hasLeadershipAccess = accessData?.isLeadership || user?.staffTier === "director" || user?.staffTier === "executive" || false;
   
@@ -135,6 +147,12 @@ export default function DepartmentPortal() {
     queryKey: ["department", code],
     queryFn: () => fetchDepartment(code),
     enabled: !!code,
+  });
+
+  const { data: aosDeptData } = useQuery({
+    queryKey: ["department", "aos"],
+    queryFn: () => fetchDepartment("aos"),
+    enabled: isPolicePortal,
   });
 
   if (userLoading || accessLoading) {
@@ -150,6 +168,10 @@ export default function DepartmentPortal() {
 
   if (!user) {
     return <Redirect to="/departments" />;
+  }
+
+  if (rawCode === "aos") {
+    return <Redirect to="/departments/police" />;
   }
 
   if (accessData?.hasAccess === false) {
@@ -188,24 +210,51 @@ export default function DepartmentPortal() {
           {deptLoading ? (
             <Skeleton className="h-20 mb-8" />
           ) : department ? (
-            <motion.header 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-4 mb-8"
-            >
-              <div 
-                className="p-4 rounded-xl"
-                style={{ backgroundColor: `${department.color}20`, color: department.color }}
+            <>
+              <motion.header 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-4 mb-4"
               >
-                {icon}
-              </div>
-              <div>
-                <h1 className="text-3xl font-black" style={{ color: department.color }}>
-                  {department.name}
-                </h1>
-                <p className="text-muted-foreground">{department.description}</p>
-              </div>
-            </motion.header>
+                <div 
+                  className="p-4 rounded-xl"
+                  style={{ backgroundColor: `${department.color}20`, color: department.color }}
+                >
+                  {icon}
+                </div>
+                <div className="flex-1">
+                  <h1 className="text-3xl font-black" style={{ color: department.color }}>
+                    {department.name}
+                  </h1>
+                  <p className="text-muted-foreground">{department.description}</p>
+                </div>
+              </motion.header>
+
+              {isPolicePortal && hasAosAccess && (
+                <div className="flex gap-2 mb-8" data-testid="police-aos-toggle">
+                  <Button
+                    variant={activeSection === "police" ? "default" : "outline"}
+                    onClick={() => setActiveSection("police")}
+                    className="gap-2"
+                    style={activeSection === "police" ? { backgroundColor: "#3B82F6", color: "white" } : {}}
+                    data-testid="toggle-police"
+                  >
+                    <Shield className="w-4 h-4" /> Auckland Police
+                  </Button>
+                  <Button
+                    variant={activeSection === "aos" ? "default" : "outline"}
+                    onClick={() => setActiveSection("aos")}
+                    className="gap-2"
+                    style={activeSection === "aos" ? { backgroundColor: "#8B5CF6", color: "white" } : {}}
+                    data-testid="toggle-aos"
+                  >
+                    <Target className="w-4 h-4" /> Armed Offenders Squad
+                  </Button>
+                </div>
+              )}
+
+              {!(isPolicePortal && hasAosAccess) && <div className="mb-4" />}
+            </>
           ) : null}
 
           {DEPARTMENT_BANNERS[code] && (
@@ -226,23 +275,23 @@ export default function DepartmentPortal() {
 
           <Tabs value={activeTab} className="w-full">
             <TabsList className="bg-zinc-900/50 border border-white/5 mb-8">
-              <Link href={`/departments/${code}/roster`}>
+              <Link href={`/departments/${rawCode}/roster`}>
                 <TabsTrigger value="roster" className="gap-2" data-testid="tab-roster">
                   <Users className="w-4 h-4" /> Roster
                 </TabsTrigger>
               </Link>
-              <Link href={`/departments/${code}/sops`}>
+              <Link href={`/departments/${rawCode}/sops`}>
                 <TabsTrigger value="sops" className="gap-2" data-testid="tab-sops">
                   <FileText className="w-4 h-4" /> SOPs
                 </TabsTrigger>
               </Link>
-              <Link href={`/departments/${code}/applications`}>
+              <Link href={`/departments/${rawCode}/applications`}>
                 <TabsTrigger value="applications" className="gap-2" data-testid="tab-applications">
                   <ClipboardList className="w-4 h-4" /> Applications
                 </TabsTrigger>
               </Link>
               {hasLeadershipAccess && (
-                <Link href={`/departments/${code}/leadership`}>
+                <Link href={`/departments/${rawCode}/leadership`}>
                   <TabsTrigger value="leadership" className="gap-2" data-testid="tab-leadership">
                     <Settings className="w-4 h-4" /> Leadership Settings
                   </TabsTrigger>
@@ -259,7 +308,7 @@ export default function DepartmentPortal() {
             </TabsContent>
             
             <TabsContent value="applications">
-              <ApplicationsTab code={code} user={user} />
+              <ApplicationsTab code={code} user={user} isLeadership={hasLeadershipAccess} />
             </TabsContent>
             
             {hasLeadershipAccess && (
@@ -791,23 +840,595 @@ function SOPsTab({ code }: { code: string }) {
   );
 }
 
-function ApplicationsTab({ code, user }: { code: string; user: User }) {
+interface AppForm {
+  id: string;
+  title: string;
+  description: string | null;
+  departmentCode: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+interface AppQuestion {
+  id: string;
+  formId: string;
+  label: string;
+  type: string;
+  options: string | null;
+  isRequired: boolean;
+  priority: number;
+}
+
+interface AppSubmission {
+  id: string;
+  formId: string;
+  userId: string;
+  departmentCode: string;
+  status: string;
+  answers: string | null;
+  createdAt: string;
+  formTitle: string;
+  username: string;
+  avatar: string | null;
+  discordId: string;
+}
+
+interface AppMessage {
+  id: string;
+  submissionId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  username: string;
+  avatar: string | null;
+  discordId: string;
+  staffTier: string | null;
+}
+
+function ApplicationsTab({ code, user, isLeadership }: { code: string; user: User; isLeadership: boolean }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [view, setView] = useState<"list" | "create-form" | "fill-form" | "submission">("list");
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+
+  const { data: formsData } = useQuery({
+    queryKey: ["forms", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${code}/forms`, { credentials: "include" });
+      if (!res.ok) return { forms: [] };
+      return res.json() as Promise<{ forms: AppForm[] }>;
+    },
+  });
+
+  const { data: submissionsData, isLoading: subsLoading } = useQuery({
+    queryKey: ["submissions", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${code}/submissions`, { credentials: "include" });
+      if (!res.ok) return { submissions: [] };
+      return res.json() as Promise<{ submissions: AppSubmission[] }>;
+    },
+  });
+
+  const forms = formsData?.forms || [];
+  const submissions = submissionsData?.submissions || [];
+
+  const deleteFormMutation = useMutation({
+    mutationFn: async (formId: string) => {
+      const res = await fetch(`/api/forms/${formId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Form deleted" });
+      queryClient.invalidateQueries({ queryKey: ["forms", code] });
+    },
+  });
+
+  if (view === "create-form") {
+    return <FormBuilder code={code} onBack={() => { setView("list"); queryClient.invalidateQueries({ queryKey: ["forms", code] }); }} />;
+  }
+
+  if (view === "fill-form" && selectedFormId) {
+    return <FormFiller formId={selectedFormId} code={code} user={user} onBack={() => { setView("list"); queryClient.invalidateQueries({ queryKey: ["submissions", code] }); }} />;
+  }
+
+  if (view === "submission" && selectedSubmissionId) {
+    return <SubmissionThread submissionId={selectedSubmissionId} user={user} isLeadership={isLeadership} onBack={() => { setView("list"); queryClient.invalidateQueries({ queryKey: ["submissions", code] }); }} />;
+  }
+
   return (
     <div className="space-y-8">
+      {isLeadership && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Application Forms</CardTitle>
+                <CardDescription>Create and manage application forms for this department.</CardDescription>
+              </div>
+              <Button onClick={() => setView("create-form")} data-testid="button-create-form">
+                <Plus className="w-4 h-4 mr-2" /> Create Form
+              </Button>
+            </div>
+          </CardHeader>
+          {forms.length > 0 && (
+            <CardContent className="space-y-2">
+              {forms.map((form) => (
+                <div key={form.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors" data-testid={`form-${form.id}`}>
+                  <div>
+                    <span className="font-medium text-sm">{form.title}</span>
+                    {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => deleteFormMutation.mutate(form.id)} data-testid={`button-delete-form-${form.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {!isLeadership && forms.length > 0 && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardHeader>
+            <CardTitle>Apply to This Department</CardTitle>
+            <CardDescription>Select an application form to fill out and submit.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {forms.map((form) => (
+              <div key={form.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors cursor-pointer" onClick={() => { setSelectedFormId(form.id); setView("fill-form"); }} data-testid={`form-apply-${form.id}`}>
+                <div>
+                  <span className="font-medium text-sm">{form.title}</span>
+                  {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-zinc-900/40 border-white/5">
         <CardHeader>
-          <CardTitle>Join This Department</CardTitle>
-          <CardDescription>
-            Submit an application to join this department's roster.
-          </CardDescription>
+          <CardTitle>{isLeadership ? "All Applications" : "My Applications"}</CardTitle>
+          <CardDescription>{isLeadership ? "Review and respond to submitted applications." : "View the status of your submitted applications."}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8">
-            <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4">Application forms coming soon.</p>
-            <p className="text-sm text-muted-foreground/60">
-              Contact department leadership on Discord for now.
-            </p>
+          {subsLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}</div>
+          ) : submissions.length === 0 ? (
+            <div className="text-center py-8">
+              <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">{isLeadership ? "No applications submitted yet." : "You haven't submitted any applications yet."}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {submissions.map((sub) => (
+                <div
+                  key={sub.id}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                  onClick={() => { setSelectedSubmissionId(sub.id); setView("submission"); }}
+                  data-testid={`submission-${sub.id}`}
+                >
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                    <img src={sub.avatar ? `https://cdn.discordapp.com/avatars/${sub.discordId}/${sub.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(sub.discordId) % 5}.png`} alt={sub.username} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm truncate">{sub.username}</span>
+                      <span className="text-xs text-muted-foreground">•</span>
+                      <span className="text-xs text-muted-foreground">{sub.formTitle}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{new Date(sub.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <Badge variant="outline" className={`text-xs ${sub.status === "accepted" ? "border-green-500/50 text-green-400" : sub.status === "denied" ? "border-red-500/50 text-red-400" : sub.status === "under_review" ? "border-yellow-500/50 text-yellow-400" : "border-white/20"}`}>
+                    {sub.status.replace("_", " ")}
+                  </Badge>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {!isLeadership && forms.length === 0 && submissions.length === 0 && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="py-8">
+            <div className="text-center">
+              <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground mb-2">No application forms available yet.</p>
+              <p className="text-sm text-muted-foreground/60">Contact department leadership on Discord for now.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
+  const { toast } = useToast();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [questions, setQuestions] = useState<Array<{ label: string; type: string; options: string[]; isRequired: boolean }>>([]);
+
+  const addQuestion = () => {
+    setQuestions([...questions, { label: "", type: "short_answer", options: [], isRequired: true }]);
+  };
+
+  const updateQuestion = (idx: number, updates: Partial<typeof questions[0]>) => {
+    const copy = [...questions];
+    copy[idx] = { ...copy[idx], ...updates };
+    setQuestions(copy);
+  };
+
+  const removeQuestion = (idx: number) => {
+    setQuestions(questions.filter((_, i) => i !== idx));
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/departments/${code}/forms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title, description, questions }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Form Created" });
+      onBack();
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not create form.", variant: "destructive" });
+    },
+  });
+
+  return (
+    <div className="space-y-6">
+      <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground" data-testid="button-back-forms">
+        <ChevronLeft className="w-4 h-4" /> Back to Applications
+      </Button>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardHeader>
+          <CardTitle>Create Application Form</CardTitle>
+          <CardDescription>Design the questions players will answer when applying.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Form Title</Label>
+              <Input placeholder="e.g. Patrol Officer Application" value={title} onChange={(e) => setTitle(e.target.value)} data-testid="input-form-title" />
+            </div>
+            <div>
+              <Label>Description (optional)</Label>
+              <Input placeholder="Brief description of this form" value={description} onChange={(e) => setDescription(e.target.value)} data-testid="input-form-description" />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Questions</h3>
+              <Button variant="outline" size="sm" onClick={addQuestion} data-testid="button-add-question">
+                <Plus className="w-4 h-4 mr-1" /> Add Question
+              </Button>
+            </div>
+
+            {questions.length === 0 && (
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-white/10 rounded-lg">
+                No questions added yet. Click "Add Question" to start.
+              </div>
+            )}
+
+            {questions.map((q, idx) => (
+              <Card key={idx} className="bg-zinc-800/40 border-white/5">
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs text-muted-foreground font-mono mt-2">Q{idx + 1}</span>
+                    <div className="flex-1 space-y-3">
+                      <Input placeholder="Question text" value={q.label} onChange={(e) => updateQuestion(idx, { label: e.target.value })} data-testid={`input-question-${idx}`} />
+                      <div className="flex gap-3 items-center">
+                        <select value={q.type} onChange={(e) => updateQuestion(idx, { type: e.target.value })} className="bg-zinc-900 border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground" data-testid={`select-type-${idx}`}>
+                          <option value="short_answer">Short Answer</option>
+                          <option value="long_answer">Long Answer</option>
+                          <option value="dropdown">Dropdown</option>
+                          <option value="checkbox">Checkbox / Multiple Choice</option>
+                        </select>
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={q.isRequired} onCheckedChange={(checked) => updateQuestion(idx, { isRequired: checked as boolean })} id={`req-${idx}`} />
+                          <Label htmlFor={`req-${idx}`} className="text-xs">Required</Label>
+                        </div>
+                      </div>
+                      {(q.type === "dropdown" || q.type === "checkbox") && (
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Options (one per line)</Label>
+                          <textarea className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[80px]" placeholder={"Option 1\nOption 2\nOption 3"} value={q.options.join("\n")} onChange={(e) => updateQuestion(idx, { options: e.target.value.split("\n") })} data-testid={`textarea-options-${idx}`} />
+                        </div>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 shrink-0" onClick={() => removeQuestion(idx)} data-testid={`button-remove-question-${idx}`}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={() => createMutation.mutate()} disabled={!title.trim() || questions.length === 0 || createMutation.isPending} data-testid="button-save-form">
+              {createMutation.isPending ? "Creating..." : "Create Form"}
+            </Button>
+            <Button variant="outline" onClick={onBack}>Cancel</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function FormFiller({ formId, code, user, onBack }: { formId: string; code: string; user: User; onBack: () => void }) {
+  const { toast } = useToast();
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["form", formId],
+    queryFn: async () => {
+      const res = await fetch(`/api/forms/${formId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ form: AppForm; questions: AppQuestion[] }>;
+    },
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/departments/${code}/submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ formId, answers }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Application Submitted", description: "Your application has been sent to the department leadership." });
+      onBack();
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not submit application.", variant: "destructive" });
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-48" />;
+
+  const form = data?.form;
+  const questions = data?.questions || [];
+
+  return (
+    <div className="space-y-6">
+      <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground" data-testid="button-back-apply">
+        <ChevronLeft className="w-4 h-4" /> Back to Applications
+      </Button>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardHeader>
+          <CardTitle>{form?.title}</CardTitle>
+          {form?.description && <CardDescription>{form.description}</CardDescription>}
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {questions.map((q) => {
+            const opts: string[] = q.options ? JSON.parse(q.options) : [];
+            return (
+              <div key={q.id} className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  {q.label}
+                  {q.isRequired && <span className="text-red-400">*</span>}
+                </Label>
+                {q.type === "short_answer" && (
+                  <Input value={(answers[q.id] as string) || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} data-testid={`answer-${q.id}`} />
+                )}
+                {q.type === "long_answer" && (
+                  <textarea className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[100px]" value={(answers[q.id] as string) || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} data-testid={`answer-${q.id}`} />
+                )}
+                {q.type === "dropdown" && (
+                  <select value={(answers[q.id] as string) || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground" data-testid={`answer-${q.id}`}>
+                    <option value="">Select an option...</option>
+                    {opts.filter(o => o.trim()).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                )}
+                {q.type === "checkbox" && (
+                  <div className="space-y-2">
+                    {opts.filter(o => o.trim()).map((opt) => {
+                      const selected = Array.isArray(answers[q.id]) ? (answers[q.id] as string[]) : [];
+                      return (
+                        <div key={opt} className="flex items-center gap-2">
+                          <Checkbox checked={selected.includes(opt)} onCheckedChange={(checked) => {
+                            const current = Array.isArray(answers[q.id]) ? [...(answers[q.id] as string[])] : [];
+                            if (checked) current.push(opt); else current.splice(current.indexOf(opt), 1);
+                            setAnswers({ ...answers, [q.id]: current });
+                          }} />
+                          <Label className="text-sm">{opt}</Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="flex gap-2">
+            <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending} data-testid="button-submit-application">
+              {submitMutation.isPending ? "Submitting..." : "Submit Application"}
+            </Button>
+            <Button variant="outline" onClick={onBack}>Cancel</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submissionId: string; user: User; isLeadership: boolean; onBack: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [newMessage, setNewMessage] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["submission", submissionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/submissions/${submissionId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{
+        submission: AppSubmission;
+        form: AppForm | null;
+        questions: AppQuestion[];
+        messages: AppMessage[];
+        submitter: { username: string; avatar: string | null; discordId: string } | null;
+      }>;
+    },
+    refetchInterval: 10000,
+  });
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/submissions/${submissionId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ content: newMessage }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      setNewMessage("");
+      queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not send message.", variant: "destructive" });
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async (status: string) => {
+      const res = await fetch(`/api/submissions/${submissionId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Status Updated" });
+      queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-48" />;
+
+  const submission = data?.submission;
+  const form = data?.form;
+  const questions = data?.questions || [];
+  const messages = data?.messages || [];
+  const submitter = data?.submitter;
+  const parsedAnswers: Record<string, string | string[]> = submission?.answers ? JSON.parse(submission.answers) : {};
+
+  const statusColor = submission?.status === "accepted" ? "text-green-400 border-green-500/50" : submission?.status === "denied" ? "text-red-400 border-red-500/50" : submission?.status === "under_review" ? "text-yellow-400 border-yellow-500/50" : "border-white/20";
+
+  return (
+    <div className="space-y-6">
+      <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground" data-testid="button-back-submission">
+        <ChevronLeft className="w-4 h-4" /> Back to Applications
+      </Button>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              {submitter && (
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                  <img src={submitter.avatar ? `https://cdn.discordapp.com/avatars/${submitter.discordId}/${submitter.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(submitter.discordId) % 5}.png`} alt={submitter.username} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div>
+                <CardTitle>{form?.title || "Application"}</CardTitle>
+                <CardDescription>by {submitter?.username || "Unknown"} • {submission ? new Date(submission.createdAt).toLocaleDateString() : ""}</CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={`capitalize ${statusColor}`}>{submission?.status?.replace("_", " ")}</Badge>
+              {isLeadership && (
+                <div className="flex gap-1">
+                  {submission?.status !== "accepted" && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10" onClick={() => statusMutation.mutate("accepted")} data-testid="button-accept">Accept</Button>
+                  )}
+                  {submission?.status !== "denied" && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => statusMutation.mutate("denied")} data-testid="button-deny">Deny</Button>
+                  )}
+                  {submission?.status !== "under_review" && submission?.status === "pending" && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10" onClick={() => statusMutation.mutate("under_review")} data-testid="button-review">Under Review</Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {questions.map((q) => {
+            const answer = parsedAnswers[q.id];
+            return (
+              <div key={q.id} className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{q.label}</p>
+                <p className="text-sm">{Array.isArray(answer) ? answer.join(", ") : answer || <span className="text-muted-foreground italic">No answer</span>}</p>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardHeader>
+          <CardTitle className="text-base">Messages</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {messages.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No messages yet. Start a conversation below.</p>
+          )}
+          {messages.map((msg) => {
+            const isMe = msg.userId === user.id;
+            return (
+              <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`} data-testid={`message-${msg.id}`}>
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                  <img src={msg.avatar ? `https://cdn.discordapp.com/avatars/${msg.discordId}/${msg.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(msg.discordId) % 5}.png`} alt={msg.username} className="w-full h-full object-cover" />
+                </div>
+                <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"}`}>
+                  <div className={`flex items-center gap-2 mb-1 ${isMe ? "justify-end" : ""}`}>
+                    <span className="text-xs font-medium">{msg.username}</span>
+                    {msg.staffTier && <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{msg.staffTier}</Badge>}
+                    <span className="text-[10px] text-muted-foreground">{new Date(msg.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div className={`rounded-lg px-3 py-2 text-sm ${isMe ? "bg-primary/20 text-foreground" : "bg-zinc-800/60"}`}>
+                    {msg.content}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="flex gap-2 pt-4 border-t border-white/5">
+            <Input placeholder="Type a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && newMessage.trim()) sendMessageMutation.mutate(); }} className="flex-1" data-testid="input-message" />
+            <Button onClick={() => sendMessageMutation.mutate()} disabled={!newMessage.trim() || sendMessageMutation.isPending} data-testid="button-send-message">
+              Send
+            </Button>
           </div>
         </CardContent>
       </Card>

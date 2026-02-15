@@ -74,13 +74,19 @@ export default function Departments() {
 
           {isLoading ? (
             <div className="grid sm:grid-cols-2 gap-6">
-              {[1, 2, 3, 4].map((i) => (
+              {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-48 rounded-lg" />
               ))}
             </div>
           ) : data ? (
             <div className="grid sm:grid-cols-2 gap-6">
-              {data.departments.filter(d => d.isActive).map((dept, idx) => (
+              {data.departments
+                .filter(d => d.isActive && d.code !== "aos")
+                .sort((a, b) => {
+                  const order = ["police", "fire", "ems"];
+                  return order.indexOf(a.code) - order.indexOf(b.code);
+                })
+                .map((dept, idx) => (
                 <motion.div
                   key={dept.id}
                   initial={{ opacity: 0, y: 20 }}

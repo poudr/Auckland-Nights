@@ -95,27 +95,100 @@ export const insertRosterMemberSchema = createInsertSchema(rosterMembers).omit({
 export type InsertRosterMember = z.infer<typeof insertRosterMemberSchema>;
 export type RosterMember = typeof rosterMembers.$inferSelect;
 
-// ============ APPLICATIONS ============
-export const applications = pgTable("applications", {
+// ============ APPLICATION FORMS ============
+export const applicationForms = pgTable("application_forms", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
   departmentCode: text("department_code").notNull(),
-  type: text("type").notNull(), // roster_request, promotion, leadership
-  status: text("status").default("pending"), // pending, approved, denied
-  formData: text("form_data"), // JSON string of form responses
-  reviewedBy: varchar("reviewed_by"),
-  reviewNotes: text("review_notes"),
+  title: text("title").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertApplicationSchema = createInsertSchema(applications).omit({
+export const insertApplicationFormSchema = createInsertSchema(applicationForms).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
-export type InsertApplication = z.infer<typeof insertApplicationSchema>;
-export type Application = typeof applications.$inferSelect;
+export type InsertApplicationForm = z.infer<typeof insertApplicationFormSchema>;
+export type ApplicationForm = typeof applicationForms.$inferSelect;
+
+// ============ APPLICATION QUESTIONS ============
+export const applicationQuestions = pgTable("application_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull(),
+  label: text("label").notNull(),
+  type: text("type").notNull(), // dropdown, short_answer, long_answer, checkbox
+  options: text("options"), // JSON array for dropdown/checkbox options
+  isRequired: boolean("is_required").default(true),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertApplicationQuestionSchema = createInsertSchema(applicationQuestions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertApplicationQuestion = z.infer<typeof insertApplicationQuestionSchema>;
+export type ApplicationQuestion = typeof applicationQuestions.$inferSelect;
+
+// ============ APPLICATION SUBMISSIONS ============
+export const applicationSubmissions = pgTable("application_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  departmentCode: text("department_code").notNull(),
+  status: text("status").default("pending"), // pending, under_review, accepted, denied
+  answers: text("answers"), // JSON object { questionId: answer }
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertApplicationSubmissionSchema = createInsertSchema(applicationSubmissions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmissionSchema>;
+export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
+
+// ============ APPLICATION MESSAGES ============
+export const applicationMessages = pgTable("application_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  submissionId: varchar("submission_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertApplicationMessageSchema = createInsertSchema(applicationMessages).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertApplicationMessage = z.infer<typeof insertApplicationMessageSchema>;
+export type ApplicationMessage = typeof applicationMessages.$inferSelect;
+
+// ============ NOTIFICATIONS ============
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  type: text("type").notNull(), // application_submitted, application_response, status_change
+  title: text("title").notNull(),
+  message: text("message"),
+  link: text("link"),
+  relatedId: varchar("related_id"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
 
 // ============ SOPs (Standard Operating Procedures) ============
 export const sops = pgTable("sops", {
