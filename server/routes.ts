@@ -371,12 +371,13 @@ export async function registerRoutes(
       }
 
       const code = req.params.code as string;
-      const { title, description, questions } = req.body;
+      const { title, description, questions, rolesOnAccept } = req.body;
 
       const form = await storage.createApplicationForm({
         departmentCode: code,
         title,
         description: description || null,
+        rolesOnAccept: rolesOnAccept ? JSON.stringify(rolesOnAccept) : null,
         createdBy: user.id,
         isActive: true,
       });
@@ -411,8 +412,12 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only leadership can edit forms" });
       }
 
-      const { title, description, questions } = req.body;
-      const form = await storage.updateApplicationForm(req.params.id, { title, description });
+      const { title, description, questions, rolesOnAccept } = req.body;
+      const form = await storage.updateApplicationForm(req.params.id, { 
+        title, 
+        description,
+        rolesOnAccept: rolesOnAccept ? JSON.stringify(rolesOnAccept) : null,
+      });
       if (!form) return res.status(404).json({ error: "Form not found" });
 
       if (questions && Array.isArray(questions)) {
@@ -583,12 +588,83 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only leadership can change status" });
       }
 
-      const { status } = req.body;
+      const { status, rolesToAssign } = req.body;
       const submission = await storage.updateSubmission(req.params.id, { status });
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
       const form = await storage.getApplicationForm(submission.formId);
       const dept = await storage.getDepartment(submission.departmentCode);
+
+      const roleAssignmentResults: { discordRoles: string[]; websiteRoles: string[]; errors: string[] } = {
+        discordRoles: [],
+        websiteRoles: [],
+        errors: [],
+      };
+
+      if (status === "accepted" && rolesToAssign) {
+        const { discordRoleIds, websiteRoles: newWebsiteRoles } = rolesToAssign as {
+          discordRoleIds?: string[];
+          websiteRoles?: string[];
+        };
+
+        const deptCode = submission.departmentCode;
+        const deptRanks = await storage.getRanksByDepartment(deptCode);
+        const allowedDiscordRoleIds = new Set(
+          deptRanks.filter(r => r.discordRoleId).map(r => r.discordRoleId!)
+        );
+        if (deptCode === "police") {
+          const aosRanks = await storage.getRanksByDepartment("aos");
+          aosRanks.filter(r => r.discordRoleId).forEach(r => allowedDiscordRoleIds.add(r.discordRoleId!));
+        }
+
+        const allowedWebsiteRoles = new Set([deptCode, ...(deptCode === "police" ? ["aos"] : [])]);
+
+        const validDiscordRoleIds = (discordRoleIds || []).filter(id => allowedDiscordRoleIds.has(id));
+        const validWebsiteRoles = (newWebsiteRoles || []).filter(r => allowedWebsiteRoles.has(r));
+
+        const applicant = await storage.getUser(submission.userId);
+        if (applicant && applicant.discordId) {
+          if (validDiscordRoleIds.length > 0) {
+            const botToken = process.env.DISCORD_BOT_TOKEN;
+            const guildId = process.env.DISCORD_GUILD_ID;
+            if (botToken && guildId) {
+              for (const roleId of validDiscordRoleIds) {
+                try {
+                  const response = await fetch(
+                    `https://discord.com/api/v10/guilds/${guildId}/members/${applicant.discordId}/roles/${roleId}`,
+                    {
+                      method: "PUT",
+                      headers: {
+                        Authorization: `Bot ${botToken}`,
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  );
+                  if (response.ok || response.status === 204) {
+                    roleAssignmentResults.discordRoles.push(roleId);
+                  } else {
+                    const errorText = await response.text();
+                    console.error(`Failed to assign Discord role ${roleId}:`, response.status, errorText);
+                    roleAssignmentResults.errors.push(`Discord role ${roleId}: ${response.status}`);
+                  }
+                } catch (err) {
+                  console.error(`Error assigning Discord role ${roleId}:`, err);
+                  roleAssignmentResults.errors.push(`Discord role ${roleId}: network error`);
+                }
+              }
+            } else {
+              roleAssignmentResults.errors.push("Discord bot token or guild ID not configured");
+            }
+          }
+
+          if (validWebsiteRoles.length > 0) {
+            const currentWebsiteRoles = applicant.websiteRoles || [];
+            const mergedRoles = [...new Set([...currentWebsiteRoles, ...validWebsiteRoles])];
+            await storage.updateUser(applicant.discordId, { websiteRoles: mergedRoles });
+            roleAssignmentResults.websiteRoles = validWebsiteRoles;
+          }
+        }
+      }
 
       await storage.createNotification({
         userId: submission.userId,
@@ -600,8 +676,9 @@ export async function registerRoutes(
         isRead: false,
       });
 
-      res.json({ submission });
+      res.json({ submission, roleAssignment: roleAssignmentResults });
     } catch (error) {
+      console.error("Update status error:", error);
       res.status(500).json({ error: "Failed to update status" });
     }
   });

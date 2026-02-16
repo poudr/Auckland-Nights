@@ -840,12 +840,18 @@ function SOPsTab({ code }: { code: string }) {
   );
 }
 
+interface RolesOnAccept {
+  discordRoleIds: string[];
+  websiteRoles: string[];
+}
+
 interface AppForm {
   id: string;
   title: string;
   description: string | null;
   departmentCode: string;
   isActive: boolean;
+  rolesOnAccept: string | null;
   createdAt: string;
 }
 
@@ -1053,6 +1059,30 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<Array<{ label: string; type: string; options: string[]; isRequired: boolean }>>([]);
+  const [selectedDiscordRoles, setSelectedDiscordRoles] = useState<string[]>([]);
+  const [selectedWebsiteRoles, setSelectedWebsiteRoles] = useState<string[]>([]);
+
+  const { data: ranksData } = useQuery({
+    queryKey: ["ranks", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${code}/ranks`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.ranks || data) as Array<{ id: string; name: string; discordRoleId: string | null; departmentCode: string }>;
+    },
+  });
+
+  const deptRanks = ranksData || [];
+  const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
+  const websiteRoleOptions = [code, ...(code === "police" ? ["aos"] : [])];
+
+  const toggleDiscordRole = (roleId: string) => {
+    setSelectedDiscordRoles(prev => prev.includes(roleId) ? prev.filter(r => r !== roleId) : [...prev, roleId]);
+  };
+
+  const toggleWebsiteRole = (role: string) => {
+    setSelectedWebsiteRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
+  };
 
   const addQuestion = () => {
     setQuestions([...questions, { label: "", type: "short_answer", options: [], isRequired: true }]);
@@ -1070,11 +1100,12 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const rolesOnAccept: RolesOnAccept = { discordRoleIds: selectedDiscordRoles, websiteRoles: selectedWebsiteRoles };
       const res = await fetch(`/api/departments/${code}/forms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ title, description, questions }),
+        body: JSON.stringify({ title, description, questions, rolesOnAccept }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -1158,6 +1189,54 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold">Roles to Assign on Accept</h3>
+            <CardDescription>Select which Discord roles and website permissions to automatically grant when an application is accepted. These can be tweaked per-application when accepting.</CardDescription>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Discord Roles (from department ranks)</Label>
+                {ranksWithDiscordRole.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60">No ranks have Discord Role IDs configured. Set them in Leadership Settings.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {ranksWithDiscordRole.map((rank) => (
+                      <div key={rank.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedDiscordRoles.includes(rank.discordRoleId!)}
+                          onCheckedChange={() => toggleDiscordRole(rank.discordRoleId!)}
+                          id={`discord-role-${rank.id}`}
+                          data-testid={`checkbox-discord-role-${rank.id}`}
+                        />
+                        <Label htmlFor={`discord-role-${rank.id}`} className="text-sm cursor-pointer">
+                          {rank.name}
+                          <span className="text-[10px] text-muted-foreground ml-1">({rank.discordRoleId})</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Website Portal Access</Label>
+                <div className="space-y-1.5">
+                  {websiteRoleOptions.map((role) => (
+                    <div key={role} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedWebsiteRoles.includes(role)}
+                        onCheckedChange={() => toggleWebsiteRole(role)}
+                        id={`website-role-${role}`}
+                        data-testid={`checkbox-website-role-${role}`}
+                      />
+                      <Label htmlFor={`website-role-${role}`} className="text-sm capitalize cursor-pointer">{role} Portal Access</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -1279,6 +1358,10 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
+  const [showAcceptPanel, setShowAcceptPanel] = useState(false);
+  const [acceptDiscordRoles, setAcceptDiscordRoles] = useState<string[]>([]);
+  const [acceptWebsiteRoles, setAcceptWebsiteRoles] = useState<string[]>([]);
+  const [rolesInitialized, setRolesInitialized] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["submission", submissionId],
@@ -1287,7 +1370,7 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<{
         submission: AppSubmission;
-        form: AppForm | null;
+        form: (AppForm & { rolesOnAccept?: string | null }) | null;
         questions: AppQuestion[];
         messages: AppMessage[];
         submitter: { username: string; avatar: string | null; discordId: string } | null;
@@ -1295,6 +1378,34 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
     },
     refetchInterval: 10000,
   });
+
+  const deptCode = data?.submission?.departmentCode || "";
+  const { data: ranksData } = useQuery({
+    queryKey: ["ranks-for-accept", deptCode],
+    queryFn: async () => {
+      if (!deptCode) return [];
+      const res = await fetch(`/api/departments/${deptCode}/ranks`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return (d.ranks || d) as Array<{ id: string; name: string; discordRoleId: string | null; departmentCode: string }>;
+    },
+    enabled: !!deptCode && isLeadership,
+  });
+
+  const deptRanks = ranksData || [];
+  const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
+  const websiteRoleOptions = [deptCode, ...(deptCode === "police" ? ["aos"] : [])];
+
+  useEffect(() => {
+    if (data?.form?.rolesOnAccept && !rolesInitialized) {
+      try {
+        const defaults: RolesOnAccept = JSON.parse(data.form.rolesOnAccept);
+        setAcceptDiscordRoles(defaults.discordRoleIds || []);
+        setAcceptWebsiteRoles(defaults.websiteRoles || []);
+      } catch { /* ignore */ }
+      setRolesInitialized(true);
+    }
+  }, [data?.form?.rolesOnAccept, rolesInitialized]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
@@ -1317,21 +1428,37 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
   });
 
   const statusMutation = useMutation({
-    mutationFn: async (status: string) => {
+    mutationFn: async ({ status, rolesToAssign }: { status: string; rolesToAssign?: { discordRoleIds: string[]; websiteRoles: string[] } }) => {
       const res = await fetch(`/api/submissions/${submissionId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, rolesToAssign }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Status Updated" });
+    onSuccess: (data: { roleAssignment?: { discordRoles: string[]; websiteRoles: string[]; errors: string[] } }) => {
+      const ra = data?.roleAssignment;
+      if (ra && (ra.discordRoles.length > 0 || ra.websiteRoles.length > 0)) {
+        const parts: string[] = [];
+        if (ra.discordRoles.length > 0) parts.push(`${ra.discordRoles.length} Discord role(s)`);
+        if (ra.websiteRoles.length > 0) parts.push(`${ra.websiteRoles.length} website role(s)`);
+        toast({ title: "Application Accepted", description: `Assigned ${parts.join(" and ")}.${ra.errors.length > 0 ? ` ${ra.errors.length} role(s) failed.` : ""}` });
+      } else {
+        toast({ title: "Status Updated" });
+      }
+      setShowAcceptPanel(false);
       queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
     },
   });
+
+  const handleAcceptWithRoles = () => {
+    statusMutation.mutate({
+      status: "accepted",
+      rolesToAssign: { discordRoleIds: acceptDiscordRoles, websiteRoles: acceptWebsiteRoles },
+    });
+  };
 
   if (isLoading) return <Skeleton className="h-48" />;
 
@@ -1369,19 +1496,83 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
               {isLeadership && (
                 <div className="flex gap-1">
                   {submission?.status !== "accepted" && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10" onClick={() => statusMutation.mutate("accepted")} data-testid="button-accept">Accept</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10" onClick={() => { setShowAcceptPanel(!showAcceptPanel); if (!rolesInitialized && form?.rolesOnAccept) { try { const d: RolesOnAccept = JSON.parse(form.rolesOnAccept); setAcceptDiscordRoles(d.discordRoleIds || []); setAcceptWebsiteRoles(d.websiteRoles || []); } catch {} setRolesInitialized(true); } }} data-testid="button-accept">Accept</Button>
                   )}
                   {submission?.status !== "denied" && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => statusMutation.mutate("denied")} data-testid="button-deny">Deny</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => statusMutation.mutate({ status: "denied" })} data-testid="button-deny">Deny</Button>
                   )}
                   {submission?.status !== "under_review" && submission?.status === "pending" && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10" onClick={() => statusMutation.mutate("under_review")} data-testid="button-review">Under Review</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10" onClick={() => statusMutation.mutate({ status: "under_review" })} data-testid="button-review">Under Review</Button>
                   )}
                 </div>
               )}
             </div>
           </div>
         </CardHeader>
+
+        {showAcceptPanel && isLeadership && (
+          <div className="mx-6 mb-4 p-4 rounded-lg bg-green-500/5 border border-green-500/20 space-y-4" data-testid="accept-roles-panel">
+            <h4 className="font-semibold text-green-400 text-sm">Roles to Assign on Accept</h4>
+            <p className="text-xs text-muted-foreground">Select which roles to give to <span className="font-medium text-foreground">{submitter?.username}</span>. Defaults are pre-filled from the form configuration.</p>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Discord Roles</Label>
+                {ranksWithDiscordRole.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60">No ranks with Discord Role IDs found.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {ranksWithDiscordRole.map((rank) => (
+                      <div key={rank.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={acceptDiscordRoles.includes(rank.discordRoleId!)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setAcceptDiscordRoles(prev => [...prev, rank.discordRoleId!]);
+                            else setAcceptDiscordRoles(prev => prev.filter(r => r !== rank.discordRoleId!));
+                          }}
+                          id={`accept-discord-${rank.id}`}
+                          data-testid={`accept-discord-role-${rank.id}`}
+                        />
+                        <Label htmlFor={`accept-discord-${rank.id}`} className="text-sm cursor-pointer">
+                          {rank.name}
+                          <span className="text-[10px] text-muted-foreground ml-1">({rank.discordRoleId})</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Website Portal Access</Label>
+                <div className="space-y-1.5">
+                  {websiteRoleOptions.map((role) => (
+                    <div key={role} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={acceptWebsiteRoles.includes(role)}
+                        onCheckedChange={(checked) => {
+                          if (checked) setAcceptWebsiteRoles(prev => [...prev, role]);
+                          else setAcceptWebsiteRoles(prev => prev.filter(r => r !== role));
+                        }}
+                        id={`accept-website-${role}`}
+                        data-testid={`accept-website-role-${role}`}
+                      />
+                      <Label htmlFor={`accept-website-${role}`} className="text-sm capitalize cursor-pointer">{role} Portal Access</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleAcceptWithRoles} disabled={statusMutation.isPending} data-testid="button-confirm-accept">
+                {statusMutation.isPending ? "Accepting..." : "Confirm Accept & Assign Roles"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowAcceptPanel(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
         <CardContent className="space-y-4">
           {questions.map((q) => {
             const answer = parsedAnswers[q.id];
