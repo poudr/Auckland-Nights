@@ -384,7 +384,7 @@ export async function registerRoutes(
       }
 
       const code = req.params.code as string;
-      const { title, description, questions, rolesOnAccept, isWhitelist } = req.body;
+      const { title, description, questions, rolesOnAccept, isWhitelist, notifyRanks } = req.body;
 
       if (isWhitelist) {
         const existingForms = await storage.getApplicationFormsByDepartment(code);
@@ -400,6 +400,7 @@ export async function registerRoutes(
         title,
         description: description || null,
         rolesOnAccept: rolesOnAccept ? JSON.stringify(rolesOnAccept) : null,
+        notifyRanks: notifyRanks && Array.isArray(notifyRanks) && notifyRanks.length > 0 ? JSON.stringify(notifyRanks) : null,
         isWhitelist: isWhitelist || false,
         createdBy: user.id,
         isActive: true,
@@ -435,7 +436,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only leadership can edit forms" });
       }
 
-      const { title, description, questions, rolesOnAccept, isWhitelist } = req.body;
+      const { title, description, questions, rolesOnAccept, isWhitelist, notifyRanks } = req.body;
 
       if (isWhitelist) {
         const existingForm = await storage.getApplicationForm(req.params.id);
@@ -453,6 +454,7 @@ export async function registerRoutes(
         title, 
         description,
         rolesOnAccept: rolesOnAccept ? JSON.stringify(rolesOnAccept) : null,
+        notifyRanks: notifyRanks !== undefined ? (Array.isArray(notifyRanks) && notifyRanks.length > 0 ? JSON.stringify(notifyRanks) : null) : undefined,
         isWhitelist: isWhitelist !== undefined ? isWhitelist : undefined,
       });
       if (!form) return res.status(404).json({ error: "Form not found" });
@@ -605,14 +607,32 @@ export async function registerRoutes(
       const form = await storage.getApplicationForm(formId);
       const dept = await storage.getDepartment(code);
 
-      const leadershipUsers = await storage.getAllUsers();
-      const leaders = leadershipUsers.filter(u =>
-        u.staffTier && ["director", "executive", "manager"].includes(u.staffTier)
-      );
+      let recipientUserIds: string[] = [];
+      let useTargetedNotifications = false;
 
-      for (const leader of leaders) {
+      if (form?.notifyRanks) {
+        try {
+          const rankIds: string[] = JSON.parse(form.notifyRanks);
+          if (Array.isArray(rankIds) && rankIds.length > 0) {
+            const rosterList = await storage.getRosterByDepartment(code);
+            const matchingMembers = rosterList.filter(m => rankIds.includes(m.rankId));
+            recipientUserIds = matchingMembers.map(m => m.userId);
+            useTargetedNotifications = true;
+          }
+        } catch {}
+      }
+
+      if (!useTargetedNotifications) {
+        const allUsers = await storage.getAllUsers();
+        recipientUserIds = allUsers
+          .filter(u => u.staffTier && ["director", "executive", "manager"].includes(u.staffTier))
+          .map(u => u.id);
+      }
+
+      const uniqueRecipients = [...new Set(recipientUserIds)];
+      for (const recipientId of uniqueRecipients) {
         await storage.createNotification({
-          userId: leader.id,
+          userId: recipientId,
           type: "application_submitted",
           title: "New Application",
           message: `${user.username} submitted an application for ${dept?.name || code}: ${form?.title || "Unknown"}`,

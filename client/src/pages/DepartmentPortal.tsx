@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -963,6 +963,7 @@ interface AppForm {
   isActive: boolean;
   isWhitelist: boolean;
   rolesOnAccept: string | null;
+  notifyRanks: string | null;
   createdAt: string;
 }
 
@@ -1185,6 +1186,7 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
   const [questions, setQuestions] = useState<Array<{ label: string; type: string; options: string[]; isRequired: boolean }>>([]);
   const [selectedDiscordRoles, setSelectedDiscordRoles] = useState<string[]>([]);
   const [selectedWebsiteRoles, setSelectedWebsiteRoles] = useState<string[]>([]);
+  const [selectedNotifyRanks, setSelectedNotifyRanks] = useState<string[]>([]);
   const [questionsLoaded, setQuestionsLoaded] = useState(!isEditing);
 
   const { data: ranksData } = useQuery({
@@ -1223,6 +1225,12 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
           setSelectedWebsiteRoles(roles.websiteRoles || []);
         } catch {}
       }
+      if (editForm?.notifyRanks) {
+        try {
+          const ranks: string[] = JSON.parse(editForm.notifyRanks);
+          setSelectedNotifyRanks(ranks);
+        } catch {}
+      }
       setQuestionsLoaded(true);
     }
   }, [editFormData, isEditing, questionsLoaded]);
@@ -1237,6 +1245,10 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
 
   const toggleWebsiteRole = (role: string) => {
     setSelectedWebsiteRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
+  };
+
+  const toggleNotifyRank = (rankId: string) => {
+    setSelectedNotifyRanks(prev => prev.includes(rankId) ? prev.filter(r => r !== rankId) : [...prev, rankId]);
   };
 
   const addQuestion = () => {
@@ -1262,7 +1274,7 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
         method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ title, description, questions, rolesOnAccept, isWhitelist }),
+        body: JSON.stringify({ title, description, questions, rolesOnAccept, isWhitelist, notifyRanks: selectedNotifyRanks }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -1413,6 +1425,47 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-orange-400" />
+              <h3 className="font-semibold">Notification Recipients</h3>
+            </div>
+            <CardDescription>Choose which department ranks get notified when someone submits this form. If none are selected, all server leadership (Directors, Executives, Managers) will be notified.</CardDescription>
+
+            {deptRanks.length === 0 ? (
+              <p className="text-xs text-muted-foreground/60">No ranks configured for this department yet. All leadership will be notified by default.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-1.5">
+                {deptRanks
+                  .sort((a, b) => ((a as any).priority || 0) - ((b as any).priority || 0))
+                  .map((rank) => (
+                  <div key={rank.id} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedNotifyRanks.includes(rank.id)}
+                      onCheckedChange={() => toggleNotifyRank(rank.id)}
+                      id={`notify-rank-${rank.id}`}
+                      data-testid={`checkbox-notify-rank-${rank.id}`}
+                    />
+                    <Label htmlFor={`notify-rank-${rank.id}`} className="text-sm cursor-pointer">
+                      {rank.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedNotifyRanks.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Only roster members with the selected rank{selectedNotifyRanks.length > 1 ? "s" : ""} will receive notifications.
+              </p>
+            )}
+            {selectedNotifyRanks.length === 0 && deptRanks.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                No ranks selected — all server leadership will be notified.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-2">
