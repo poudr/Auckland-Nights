@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, type User } from "@/lib/auth";
 import { useLocation } from "wouter";
@@ -29,6 +29,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Flame: <Flame className="w-8 h-8" />,
   HeartPulse: <HeartPulse className="w-8 h-8" />,
   Target: <Target className="w-8 h-8" />,
+  Truck: <Truck className="w-8 h-8" />,
 };
 
 async function fetchDepartments(): Promise<DepartmentsData> {
@@ -74,30 +75,57 @@ export default function Departments() {
           </header>
 
           {isLoading ? (
-            <div className="grid sm:grid-cols-2 gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-48 rounded-lg" />
               ))}
             </div>
           ) : data ? (
-            <div className="grid sm:grid-cols-2 gap-6">
-              {data.departments
-                .filter(d => d.isActive && d.code !== "aos")
-                .sort((a, b) => {
-                  const order = ["police", "fire", "ems"];
-                  return order.indexOf(a.code) - order.indexOf(b.code);
-                })
-                .map((dept, idx) => (
-                <motion.div
-                  key={dept.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                >
-                  <DepartmentCard department={dept} user={user ?? null} />
-                </motion.div>
-              ))}
-            </div>
+            <>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-1 text-white">Emergency Services</h2>
+                <div className="h-0.5 w-16 bg-primary mb-6" />
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {data.departments
+                    .filter(d => d.isActive && ["police", "fire", "ems"].includes(d.code))
+                    .sort((a, b) => {
+                      const order = ["police", "fire", "ems"];
+                      return order.indexOf(a.code) - order.indexOf(b.code);
+                    })
+                    .map((dept, idx) => (
+                    <motion.div
+                      key={dept.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <DepartmentCard department={dept} user={user ?? null} />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {data.departments.filter(d => d.isActive && !["police", "fire", "ems", "aos"].includes(d.code)).length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-1 text-white">Other Departments</h2>
+                  <div className="h-0.5 w-16 bg-primary mb-6" />
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {data.departments
+                      .filter(d => d.isActive && !["police", "fire", "ems", "aos"].includes(d.code))
+                      .map((dept, idx) => (
+                      <motion.div
+                        key={dept.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: (idx + 3) * 0.1 }}
+                      >
+                        <DepartmentCard department={dept} user={user ?? null} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : null}
         </div>
       </div>

@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -78,6 +78,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Flame: <Flame className="w-6 h-6" />,
   HeartPulse: <HeartPulse className="w-6 h-6" />,
   Target: <Target className="w-6 h-6" />,
+  Truck: <Truck className="w-6 h-6" />,
 };
 
 async function fetchDepartment(code: string): Promise<{ department: Department }> {

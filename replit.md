@@ -98,10 +98,14 @@ shared/
 - **adminSettings**: Key-value admin configuration
 
 ## Departments (Seeded)
+### Emergency Services
 1. **Auckland Police Department** (police) - Blue, 11 ranks from Commissioner to Recruit
 2. **NZ Fire & Emergency** (fire) - Red, 8 ranks from District Manager to Recruit
 3. **Emergency Ambulance Service** (ems) - Green, 8 ranks from District Operations Officer to First Responder
 4. **Armed Offenders Squad** (aos) - Purple, 6 ranks from Commander to Trainee
+
+### Other Departments
+5. **Auckland Towing** (towing) - Amber, ranks managed via Leadership Settings. General Discord Role ID: 1404050461581115453
 
 ## Development
 ```bash

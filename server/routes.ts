@@ -711,6 +711,39 @@ export async function registerRoutes(
             const mergedRoles = [...new Set([...currentWebsiteRoles, ...validWebsiteRoles])];
             await storage.updateUser(applicant.discordId, { websiteRoles: mergedRoles });
             roleAssignmentResults.websiteRoles = validWebsiteRoles;
+
+            const allMappings = await storage.getRoleMappings();
+            const botToken = process.env.DISCORD_BOT_TOKEN;
+            const guildId = process.env.DISCORD_GUILD_ID;
+            if (botToken && guildId) {
+              for (const webRole of validWebsiteRoles) {
+                const mapping = allMappings.find(m => m.websitePermission === webRole);
+                if (mapping && !roleAssignmentResults.discordRoles.includes(mapping.discordRoleId)) {
+                  try {
+                    const response = await fetch(
+                      `https://discord.com/api/v10/guilds/${guildId}/members/${applicant.discordId}/roles/${mapping.discordRoleId}`,
+                      {
+                        method: "PUT",
+                        headers: {
+                          Authorization: `Bot ${botToken}`,
+                          "Content-Type": "application/json",
+                        },
+                      }
+                    );
+                    if (response.ok || response.status === 204) {
+                      roleAssignmentResults.discordRoles.push(mapping.discordRoleId);
+                    } else {
+                      const errorText = await response.text();
+                      console.error(`Failed to assign general Discord role ${mapping.discordRoleId}:`, response.status, errorText);
+                      roleAssignmentResults.errors.push(`General role ${mapping.discordRoleId}: ${response.status}`);
+                    }
+                  } catch (err) {
+                    console.error(`Error assigning general Discord role ${mapping.discordRoleId}:`, err);
+                    roleAssignmentResults.errors.push(`General role ${mapping.discordRoleId}: network error`);
+                  }
+                }
+              }
+            }
           }
         }
       }
