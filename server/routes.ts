@@ -636,7 +636,7 @@ export async function registerRoutes(
           type: "application_submitted",
           title: "New Application",
           message: `${user.username} submitted an application for ${dept?.name || code}: ${form?.title || "Unknown"}`,
-          link: `/departments/${code}/applications`,
+          link: `/departments/${code}/applications?submission=${submission.id}`,
           relatedId: submission.id,
           isRead: false,
         });
@@ -773,7 +773,7 @@ export async function registerRoutes(
         type: "status_change",
         title: "Application Updated",
         message: `Your application for ${dept?.name || submission.departmentCode} (${form?.title || ""}) has been ${status}.`,
-        link: `/departments/${submission.departmentCode}/applications`,
+        link: `/departments/${submission.departmentCode}/applications?submission=${submission.id}`,
         relatedId: submission.id,
         isRead: false,
       });
@@ -814,7 +814,7 @@ export async function registerRoutes(
           type: "application_response",
           title: "Application Response",
           message: `${user.username} responded to your ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
-          link: `/departments/${submission.departmentCode}/applications`,
+          link: `/departments/${submission.departmentCode}/applications?submission=${submission.id}`,
           relatedId: submission.id,
           isRead: false,
         });
@@ -829,7 +829,7 @@ export async function registerRoutes(
             type: "application_response",
             title: "Application Reply",
             message: `${user.username} replied to their ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
-            link: `/departments/${submission.departmentCode}/applications`,
+            link: `/departments/${submission.departmentCode}/applications?submission=${submission.id}`,
             relatedId: submission.id,
             isRead: false,
           });
@@ -846,6 +846,25 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Send message error:", error);
       res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  app.delete("/api/submissions/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only leadership can delete applications" });
+      }
+
+      const submission = await storage.getSubmission(req.params.id);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      await storage.deleteSubmission(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete submission error:", error);
+      res.status(500).json({ error: "Failed to delete application" });
     }
   });
 
@@ -874,6 +893,15 @@ export async function registerRoutes(
   app.post("/api/notifications/read-all", isAuthenticated, async (req, res) => {
     try {
       await storage.markAllNotificationsRead(req.user!.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.delete("/api/notifications/clear-all", isAuthenticated, async (req, res) => {
+    try {
+      await storage.clearAllNotifications(req.user!.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to mark all read" });
@@ -1067,6 +1095,28 @@ export async function registerRoutes(
       res.json({ items: visibleItems });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch menu" });
+    }
+  });
+
+  app.get("/api/user/my-applications/:code", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const code = req.params.code as string;
+      const submissions = await storage.getSubmissionsByUser(user.id);
+      const deptSubmissions = submissions.filter(s => s.departmentCode === code);
+      const enriched = await Promise.all(deptSubmissions.map(async (sub) => {
+        const form = await storage.getApplicationForm(sub.formId);
+        return {
+          ...sub,
+          formTitle: form?.title || "Unknown Form",
+          username: user.username,
+          avatar: user.avatar,
+          discordId: user.discordId,
+        };
+      }));
+      res.json({ submissions: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch applications" });
     }
   });
 

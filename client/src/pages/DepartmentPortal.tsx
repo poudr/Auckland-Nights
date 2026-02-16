@@ -121,6 +121,7 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [viewingSubmissionId, setViewingSubmissionId] = useState<string | null>(null);
 
   const { data: whitelistData, isLoading } = useQuery({
     queryKey: ["whitelist-form", code],
@@ -128,6 +129,15 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
       const res = await fetch(`/api/departments/${code}/whitelist-form`);
       if (!res.ok) return { form: null, questions: [] };
       return res.json() as Promise<{ form: AppForm | null; questions: AppQuestion[] }>;
+    },
+  });
+
+  const { data: myAppsData } = useQuery({
+    queryKey: ["my-applications", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/user/my-applications/${code}`, { credentials: "include" });
+      if (!res.ok) return { submissions: [] };
+      return res.json() as Promise<{ submissions: AppSubmission[] }>;
     },
   });
 
@@ -153,6 +163,23 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
 
   const whitelistForm = whitelistData?.form;
   const questions = whitelistData?.questions || [];
+  const myApps = myAppsData?.submissions || [];
+
+  if (viewingSubmissionId) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="pt-24 px-6 max-w-4xl mx-auto">
+          <SubmissionThread
+            submissionId={viewingSubmissionId}
+            user={user}
+            isLeadership={false}
+            onBack={() => setViewingSubmissionId(null)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (showForm && whitelistForm) {
     return (
@@ -235,6 +262,34 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
             </Button>
           )}
         </div>
+
+        {myApps.length > 0 && (
+          <div className="mt-10 w-full max-w-2xl">
+            <h2 className="text-lg font-semibold mb-4">Your Applications</h2>
+            <div className="space-y-3">
+              {myApps.map((sub) => (
+                <Card key={sub.id} className="bg-zinc-900/40 border-white/5 cursor-pointer hover:bg-zinc-800/60 transition-colors" onClick={() => setViewingSubmissionId(sub.id)} data-testid={`my-app-${sub.id}`}>
+                  <CardContent className="flex items-center justify-between py-4 px-5">
+                    <div>
+                      <p className="font-medium text-sm">{(sub as any).formTitle || "Application"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Submitted {new Date(sub.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                      sub.status === "pending" ? "bg-yellow-500/20 text-yellow-400" :
+                      sub.status === "accepted" ? "bg-green-500/20 text-green-400" :
+                      sub.status === "denied" ? "bg-red-500/20 text-red-400" :
+                      "bg-zinc-500/20 text-zinc-400"
+                    }`}>
+                      {sub.status.charAt(0).toUpperCase() + sub.status.slice(1)}
+                    </span>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -244,6 +299,9 @@ export default function DepartmentPortal() {
   const [, params] = useRoute("/departments/:code/:tab?");
   const rawCode = params?.code || "";
   const activeTab = params?.tab || "roster";
+  
+  const searchParams = new URLSearchParams(window.location.search);
+  const deepLinkSubmissionId = searchParams.get("submission");
   
   const isPolicePortal = rawCode === "police";
   const [activeSection, setActiveSection] = useState<"police" | "aos">("police");
@@ -418,7 +476,7 @@ export default function DepartmentPortal() {
             </TabsContent>
             
             <TabsContent value="applications">
-              <ApplicationsTab code={code} user={user} isLeadership={hasLeadershipAccess} />
+              <ApplicationsTab code={code} user={user} isLeadership={hasLeadershipAccess} deepLinkSubmissionId={deepLinkSubmissionId} />
             </TabsContent>
             
             {hasLeadershipAccess && (
@@ -1003,13 +1061,13 @@ interface AppMessage {
   staffTier: string | null;
 }
 
-function ApplicationsTab({ code, user, isLeadership }: { code: string; user: User; isLeadership: boolean }) {
+function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { code: string; user: User; isLeadership: boolean; deepLinkSubmissionId?: string | null }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"list" | "create-form" | "edit-form" | "fill-form" | "submission">("list");
+  const [view, setView] = useState<"list" | "create-form" | "edit-form" | "fill-form" | "submission">(deepLinkSubmissionId ? "submission" : "list");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [editingForm, setEditingForm] = useState<AppForm | null>(null);
-  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(deepLinkSubmissionId || null);
 
   const { data: formsData } = useQuery({
     queryKey: ["forms", code],
@@ -1040,6 +1098,20 @@ function ApplicationsTab({ code, user, isLeadership }: { code: string; user: Use
     onSuccess: () => {
       toast({ title: "Form deleted" });
       queryClient.invalidateQueries({ queryKey: ["forms", code] });
+    },
+  });
+
+  const deleteSubmissionMutation = useMutation({
+    mutationFn: async (subId: string) => {
+      const res = await fetch(`/api/submissions/${subId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Application deleted" });
+      queryClient.invalidateQueries({ queryKey: ["submissions", code] });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not delete application.", variant: "destructive" });
     },
   });
 
@@ -1154,6 +1226,17 @@ function ApplicationsTab({ code, user, isLeadership }: { code: string; user: Use
                   <Badge variant="outline" className={`text-xs ${sub.status === "accepted" ? "border-green-500/50 text-green-400" : sub.status === "denied" ? "border-red-500/50 text-red-400" : sub.status === "under_review" ? "border-yellow-500/50 text-yellow-400" : "border-white/20"}`}>
                     {sub.status.replace("_", " ")}
                   </Badge>
+                  {isLeadership && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-red-400 hover:text-red-300 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); deleteSubmissionMutation.mutate(sub.id); }}
+                      data-testid={`button-delete-submission-${sub.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                   <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                 </div>
               ))}

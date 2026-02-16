@@ -70,6 +70,7 @@ export interface IStorage {
   getSubmission(id: string): Promise<ApplicationSubmission | undefined>;
   createSubmission(submission: InsertApplicationSubmission): Promise<ApplicationSubmission>;
   updateSubmission(id: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined>;
+  deleteSubmission(id: string): Promise<void>;
 
   // Application Messages
   getMessagesBySubmission(submissionId: string): Promise<ApplicationMessage[]>;
@@ -81,6 +82,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  clearAllNotifications(userId: string): Promise<void>;
   
   // SOPs
   getSopsByDepartment(departmentCode: string): Promise<Sop[]>;
@@ -341,6 +343,11 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async deleteSubmission(id: string): Promise<void> {
+    await db.delete(applicationMessages).where(eq(applicationMessages.submissionId, id));
+    await db.delete(applicationSubmissions).where(eq(applicationSubmissions.id, id));
+  }
+
   // ============ APPLICATION MESSAGES ============
   async getMessagesBySubmission(submissionId: string): Promise<ApplicationMessage[]> {
     return await db.select().from(applicationMessages)
@@ -377,6 +384,10 @@ export class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(userId: string): Promise<void> {
     await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
+  }
+
+  async clearAllNotifications(userId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.userId, userId));
   }
 
   // ============ SOPs ============

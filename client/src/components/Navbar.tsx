@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { Shield, User, LogOut, RefreshCw, Menu, X, Settings, Home, Bell, CheckCheck } from "lucide-react";
+import { Shield, User, LogOut, RefreshCw, Menu, X, Settings, Home, Bell, CheckCheck, Trash2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useUser, useLogout, useSyncRoles, useAuthStatus, getAvatarUrl, loginWithDiscord, hasPermission } from "@/lib/auth";
 import { useState } from "react";
@@ -47,6 +47,13 @@ function NotificationBell() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await fetch("/api/notifications/clear-all", { method: "DELETE", credentials: "include" });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+
   const unreadCount = data?.unreadCount || 0;
   const notifs = data?.notifications || [];
 
@@ -76,11 +83,18 @@ function NotificationBell() {
       <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
         <div className="flex items-center justify-between px-3 py-2">
           <span className="font-semibold text-sm">Notifications</span>
-          {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => markAllReadMutation.mutate()} data-testid="button-mark-all-read">
-              <CheckCheck className="w-3 h-3" /> Mark all read
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => markAllReadMutation.mutate()} data-testid="button-mark-all-read">
+                <CheckCheck className="w-3 h-3" /> Mark all read
+              </Button>
+            )}
+            {notifs.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-red-400 hover:text-red-300" onClick={() => clearAllMutation.mutate()} data-testid="button-clear-all-notifications">
+                <Trash2 className="w-3 h-3" /> Clear all
+              </Button>
+            )}
+          </div>
         </div>
         <DropdownMenuSeparator />
         {notifs.length === 0 ? (
