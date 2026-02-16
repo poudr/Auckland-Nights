@@ -351,6 +351,19 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/departments/:code/whitelist-form", async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      const forms = await storage.getApplicationFormsByDepartment(code);
+      const whitelistForm = forms.find(f => f.isActive && f.isWhitelist);
+      if (!whitelistForm) return res.json({ form: null });
+      const questions = await storage.getQuestionsByForm(whitelistForm.id);
+      res.json({ form: whitelistForm, questions });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch whitelist form" });
+    }
+  });
+
   app.get("/api/forms/:id", isAuthenticated, async (req, res) => {
     try {
       const form = await storage.getApplicationForm(req.params.id);
@@ -371,13 +384,23 @@ export async function registerRoutes(
       }
 
       const code = req.params.code as string;
-      const { title, description, questions, rolesOnAccept } = req.body;
+      const { title, description, questions, rolesOnAccept, isWhitelist } = req.body;
+
+      if (isWhitelist) {
+        const existingForms = await storage.getApplicationFormsByDepartment(code);
+        for (const ef of existingForms) {
+          if (ef.isWhitelist) {
+            await storage.updateApplicationForm(ef.id, { isWhitelist: false });
+          }
+        }
+      }
 
       const form = await storage.createApplicationForm({
         departmentCode: code,
         title,
         description: description || null,
         rolesOnAccept: rolesOnAccept ? JSON.stringify(rolesOnAccept) : null,
+        isWhitelist: isWhitelist || false,
         createdBy: user.id,
         isActive: true,
       });
@@ -412,11 +435,25 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only leadership can edit forms" });
       }
 
-      const { title, description, questions, rolesOnAccept } = req.body;
+      const { title, description, questions, rolesOnAccept, isWhitelist } = req.body;
+
+      if (isWhitelist) {
+        const existingForm = await storage.getApplicationForm(req.params.id);
+        if (existingForm) {
+          const existingForms = await storage.getApplicationFormsByDepartment(existingForm.departmentCode);
+          for (const ef of existingForms) {
+            if (ef.isWhitelist && ef.id !== req.params.id) {
+              await storage.updateApplicationForm(ef.id, { isWhitelist: false });
+            }
+          }
+        }
+      }
+
       const form = await storage.updateApplicationForm(req.params.id, { 
         title, 
         description,
         rolesOnAccept: rolesOnAccept ? JSON.stringify(rolesOnAccept) : null,
+        isWhitelist: isWhitelist !== undefined ? isWhitelist : undefined,
       });
       if (!form) return res.status(404).json({ error: "Form not found" });
 
@@ -544,6 +581,18 @@ export async function registerRoutes(
       const user = req.user!;
       const code = req.params.code as string;
       const { formId, answers } = req.body;
+
+      const targetForm = await storage.getApplicationForm(formId);
+      if (!targetForm || targetForm.departmentCode !== code) {
+        return res.status(400).json({ error: "Invalid form for this department" });
+      }
+
+      const userWebsiteRoles = user.websiteRoles || [];
+      const hasDeptAccess = userWebsiteRoles.includes(code) ||
+        user.staffTier === "director" || user.staffTier === "executive";
+      if (!hasDeptAccess && !targetForm.isWhitelist) {
+        return res.status(403).json({ error: "You can only submit whitelist applications for departments you don't have access to" });
+      }
 
       const submission = await storage.createSubmission({
         formId,

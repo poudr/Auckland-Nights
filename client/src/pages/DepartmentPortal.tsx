@@ -116,6 +116,129 @@ async function checkAccess(code: string): Promise<AccessData> {
   return res.json();
 }
 
+function AccessDeniedPage({ code, user }: { code: string; user: User }) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+
+  const { data: whitelistData, isLoading } = useQuery({
+    queryKey: ["whitelist-form", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${code}/whitelist-form`);
+      if (!res.ok) return { form: null, questions: [] };
+      return res.json() as Promise<{ form: AppForm | null; questions: AppQuestion[] }>;
+    },
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/departments/${code}/submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ formId: whitelistData!.form!.id, answers }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Application Submitted", description: "Your whitelist application has been submitted for review." });
+      setShowForm(false);
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not submit application.", variant: "destructive" });
+    },
+  });
+
+  const whitelistForm = whitelistData?.form;
+  const questions = whitelistData?.questions || [];
+
+  if (showForm && whitelistForm) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="pt-24 px-6 max-w-2xl mx-auto">
+          <Button variant="ghost" onClick={() => setShowForm(false)} className="gap-2 text-muted-foreground mb-6" data-testid="button-back-whitelist">
+            <ChevronLeft className="w-4 h-4" /> Back
+          </Button>
+          <Card className="bg-zinc-900/40 border-white/5">
+            <CardHeader>
+              <CardTitle>{whitelistForm.title}</CardTitle>
+              {whitelistForm.description && <CardDescription>{whitelistForm.description}</CardDescription>}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {questions.map((q) => {
+                const opts = q.options ? JSON.parse(q.options) : [];
+                return (
+                  <div key={q.id} className="space-y-1.5">
+                    <Label className="text-sm">
+                      {q.label} {q.isRequired && <span className="text-red-400">*</span>}
+                    </Label>
+                    {q.type === "short_answer" && (
+                      <Input value={(answers[q.id] as string) || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} data-testid={`input-answer-${q.id}`} />
+                    )}
+                    {q.type === "long_answer" && (
+                      <textarea className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[100px]" value={(answers[q.id] as string) || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} data-testid={`textarea-answer-${q.id}`} />
+                    )}
+                    {q.type === "dropdown" && (
+                      <select className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground" value={(answers[q.id] as string) || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} data-testid={`select-answer-${q.id}`}>
+                        <option value="">Select...</option>
+                        {opts.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    )}
+                    {q.type === "checkbox" && (
+                      <div className="space-y-1">
+                        {opts.map((o: string) => (
+                          <div key={o} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={((answers[q.id] as string[]) || []).includes(o)}
+                              onCheckedChange={(checked) => {
+                                const current = (answers[q.id] as string[]) || [];
+                                setAnswers({ ...answers, [q.id]: checked ? [...current, o] : current.filter(v => v !== o) });
+                              }}
+                            />
+                            <span className="text-sm">{o}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending} data-testid="button-submit-whitelist">
+                {submitMutation.isPending ? "Submitting..." : "Submit Application"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="pt-24 px-6 flex flex-col items-center justify-center">
+        <Lock className="w-16 h-16 text-muted-foreground mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+        <p className="text-muted-foreground mb-6">You don't have permission to access this department portal.</p>
+        <div className="flex gap-3">
+          <Link href="/departments">
+            <Button variant="outline">
+              <ChevronLeft className="w-4 h-4 mr-2" /> Back to Departments
+            </Button>
+          </Link>
+          {!isLoading && whitelistForm && (
+            <Button onClick={() => setShowForm(true)} className="bg-orange-500 hover:bg-orange-600 text-black" data-testid="button-apply-now">
+              <ClipboardList className="w-4 h-4 mr-2" /> Apply Now
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DepartmentPortal() {
   const [, params] = useRoute("/departments/:code/:tab?");
   const rawCode = params?.code || "";
@@ -175,21 +298,7 @@ export default function DepartmentPortal() {
   }
 
   if (accessData?.hasAccess === false) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="pt-24 px-6 flex flex-col items-center justify-center">
-          <Lock className="w-16 h-16 text-muted-foreground mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p className="text-muted-foreground mb-6">You don't have permission to access this department portal.</p>
-          <Link href="/departments">
-            <Button variant="outline">
-              <ChevronLeft className="w-4 h-4 mr-2" /> Back to Departments
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
+    return <AccessDeniedPage code={code} user={user} />;
   }
 
   const department = deptData?.department;
@@ -851,6 +960,7 @@ interface AppForm {
   description: string | null;
   departmentCode: string;
   isActive: boolean;
+  isWhitelist: boolean;
   rolesOnAccept: string | null;
   createdAt: string;
 }
@@ -894,8 +1004,9 @@ interface AppMessage {
 function ApplicationsTab({ code, user, isLeadership }: { code: string; user: User; isLeadership: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"list" | "create-form" | "fill-form" | "submission">("list");
+  const [view, setView] = useState<"list" | "create-form" | "edit-form" | "fill-form" | "submission">("list");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [editingForm, setEditingForm] = useState<AppForm | null>(null);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
 
   const { data: formsData } = useQuery({
@@ -934,6 +1045,10 @@ function ApplicationsTab({ code, user, isLeadership }: { code: string; user: Use
     return <FormBuilder code={code} onBack={() => { setView("list"); queryClient.invalidateQueries({ queryKey: ["forms", code] }); }} />;
   }
 
+  if (view === "edit-form" && editingForm) {
+    return <FormBuilder code={code} editForm={editingForm} onBack={() => { setEditingForm(null); setView("list"); queryClient.invalidateQueries({ queryKey: ["forms", code] }); }} />;
+  }
+
   if (view === "fill-form" && selectedFormId) {
     return <FormFiller formId={selectedFormId} code={code} user={user} onBack={() => { setView("list"); queryClient.invalidateQueries({ queryKey: ["submissions", code] }); }} />;
   }
@@ -963,11 +1078,17 @@ function ApplicationsTab({ code, user, isLeadership }: { code: string; user: Use
                 <div key={form.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors" data-testid={`form-${form.id}`}>
                   <div>
                     <span className="font-medium text-sm">{form.title}</span>
+                    {form.isWhitelist && <Badge variant="outline" className="ml-2 text-[10px] border-orange-500/30 text-orange-400">Whitelist</Badge>}
                     {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => deleteFormMutation.mutate(form.id)} data-testid={`button-delete-form-${form.id}`}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setEditingForm(form); setView("edit-form"); }} data-testid={`button-edit-form-${form.id}`}>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => deleteFormMutation.mutate(form.id)} data-testid={`button-delete-form-${form.id}`}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -1054,13 +1175,16 @@ function ApplicationsTab({ code, user, isLeadership }: { code: string; user: Use
   );
 }
 
-function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
+function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppForm; onBack: () => void }) {
   const { toast } = useToast();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const isEditing = !!editForm;
+  const [title, setTitle] = useState(editForm?.title || "");
+  const [description, setDescription] = useState(editForm?.description || "");
+  const [isWhitelist, setIsWhitelist] = useState(editForm?.isWhitelist || false);
   const [questions, setQuestions] = useState<Array<{ label: string; type: string; options: string[]; isRequired: boolean }>>([]);
   const [selectedDiscordRoles, setSelectedDiscordRoles] = useState<string[]>([]);
   const [selectedWebsiteRoles, setSelectedWebsiteRoles] = useState<string[]>([]);
+  const [questionsLoaded, setQuestionsLoaded] = useState(!isEditing);
 
   const { data: ranksData } = useQuery({
     queryKey: ["ranks", code],
@@ -1071,6 +1195,36 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
       return (data.ranks || data) as Array<{ id: string; name: string; discordRoleId: string | null; departmentCode: string }>;
     },
   });
+
+  const { data: editFormData } = useQuery({
+    queryKey: ["form", editForm?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/forms/${editForm!.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ form: AppForm; questions: AppQuestion[] }>;
+    },
+    enabled: isEditing,
+  });
+
+  useEffect(() => {
+    if (isEditing && editFormData && !questionsLoaded) {
+      const qs = editFormData.questions.map(q => ({
+        label: q.label,
+        type: q.type,
+        options: q.options ? JSON.parse(q.options) : [],
+        isRequired: q.isRequired,
+      }));
+      setQuestions(qs);
+      if (editForm?.rolesOnAccept) {
+        try {
+          const roles: RolesOnAccept = JSON.parse(editForm.rolesOnAccept);
+          setSelectedDiscordRoles(roles.discordRoleIds || []);
+          setSelectedWebsiteRoles(roles.websiteRoles || []);
+        } catch {}
+      }
+      setQuestionsLoaded(true);
+    }
+  }, [editFormData, isEditing, questionsLoaded]);
 
   const deptRanks = ranksData || [];
   const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
@@ -1098,26 +1252,41 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
     setQuestions(questions.filter((_, i) => i !== idx));
   };
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: async () => {
       const rolesOnAccept: RolesOnAccept = { discordRoleIds: selectedDiscordRoles, websiteRoles: selectedWebsiteRoles };
-      const res = await fetch(`/api/departments/${code}/forms`, {
-        method: "POST",
+      const url = isEditing ? `/api/forms/${editForm!.id}` : `/api/departments/${code}/forms`;
+      const method = isEditing ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ title, description, questions, rolesOnAccept }),
+        body: JSON.stringify({ title, description, questions, rolesOnAccept, isWhitelist }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Form Created" });
+      toast({ title: isEditing ? "Form Updated" : "Form Created" });
       onBack();
     },
     onError: () => {
-      toast({ title: "Failed", description: "Could not create form.", variant: "destructive" });
+      toast({ title: "Failed", description: `Could not ${isEditing ? "update" : "create"} form.`, variant: "destructive" });
     },
   });
+
+  if (isEditing && !questionsLoaded) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground">
+          <ChevronLeft className="w-4 h-4" /> Back to Applications
+        </Button>
+        <div className="flex items-center justify-center py-12">
+          <Skeleton className="h-8 w-48" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1127,8 +1296,8 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
 
       <Card className="bg-zinc-900/40 border-white/5">
         <CardHeader>
-          <CardTitle>Create Application Form</CardTitle>
-          <CardDescription>Design the questions players will answer when applying.</CardDescription>
+          <CardTitle>{isEditing ? "Edit Application Form" : "Create Application Form"}</CardTitle>
+          <CardDescription>{isEditing ? "Update the form questions and settings." : "Design the questions players will answer when applying."}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -1140,6 +1309,12 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
               <Label>Description (optional)</Label>
               <Input placeholder="Brief description of this form" value={description} onChange={(e) => setDescription(e.target.value)} data-testid="input-form-description" />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox checked={isWhitelist} onCheckedChange={(checked) => setIsWhitelist(checked as boolean)} id="is-whitelist" data-testid="checkbox-is-whitelist" />
+            <Label htmlFor="is-whitelist" className="text-sm cursor-pointer">Whitelist Application</Label>
+            <span className="text-xs text-muted-foreground">(shown to users without portal access as an "Apply Now" form)</span>
           </div>
 
           <div className="space-y-4">
@@ -1240,8 +1415,8 @@ function FormBuilder({ code, onBack }: { code: string; onBack: () => void }) {
           </div>
 
           <div className="flex gap-2">
-            <Button onClick={() => createMutation.mutate()} disabled={!title.trim() || questions.length === 0 || createMutation.isPending} data-testid="button-save-form">
-              {createMutation.isPending ? "Creating..." : "Create Form"}
+            <Button onClick={() => saveMutation.mutate()} disabled={!title.trim() || questions.length === 0 || saveMutation.isPending} data-testid="button-save-form">
+              {saveMutation.isPending ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save Changes" : "Create Form")}
             </Button>
             <Button variant="outline" onClick={onBack}>Cancel</Button>
           </div>

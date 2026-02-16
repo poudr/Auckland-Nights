@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, type User } from "@/lib/auth";
+import { useLocation } from "wouter";
 
 interface Department {
   id: string;
@@ -105,12 +106,24 @@ export default function Departments() {
 }
 
 function DepartmentCard({ department, user }: { department: Department; user: User | null }) {
+  const [, setLocation] = useLocation();
   const { data: hasAccess } = useQuery({
     queryKey: ["departmentAccess", department.code],
     queryFn: () => checkAccess(department.code),
     enabled: !!user,
   });
 
+  const { data: whitelistData } = useQuery({
+    queryKey: ["whitelist-form", department.code],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${department.code}/whitelist-form`);
+      if (!res.ok) return { form: null };
+      return res.json();
+    },
+    enabled: !!user && hasAccess === false,
+  });
+
+  const hasWhitelistForm = !!whitelistData?.form;
   const icon = ICONS[department.icon] || <Shield className="w-8 h-8" />;
 
   return (
@@ -151,6 +164,14 @@ function DepartmentCard({ department, user }: { department: Department; user: Us
                 Open Portal <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
+          ) : hasWhitelistForm ? (
+            <Button 
+              className="w-full bg-orange-500 hover:bg-orange-600 text-black"
+              onClick={() => setLocation(`/departments/${department.code}`)}
+              data-testid={`button-apply-${department.code}`}
+            >
+              <ClipboardList className="w-4 h-4 mr-2" /> Apply Now
+            </Button>
           ) : (
             <Button 
               variant="outline" 
