@@ -324,6 +324,98 @@ export const insertMenuItemSchema = createInsertSchema(menuItems).omit({
 export type InsertMenuItem = z.infer<typeof insertMenuItemSchema>;
 export type MenuItem = typeof menuItems.$inferSelect;
 
+// ============ SERVER UPDATES ============
+export const serverUpdates = pgTable("server_updates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  imageUrl: text("image_url"),
+  authorId: varchar("author_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertServerUpdateSchema = createInsertSchema(serverUpdates).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertServerUpdate = z.infer<typeof insertServerUpdateSchema>;
+export type ServerUpdate = typeof serverUpdates.$inferSelect;
+
+// ============ SUPPORT FORMS ============
+export const supportForms = pgTable("support_forms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description"),
+  isOpen: boolean("is_open").default(true),
+  accessTiers: text("access_tiers").array().default(sql`'{}'::text[]`),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupportFormSchema = createInsertSchema(supportForms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSupportForm = z.infer<typeof insertSupportFormSchema>;
+export type SupportForm = typeof supportForms.$inferSelect;
+
+// ============ SUPPORT QUESTIONS ============
+export const supportQuestions = pgTable("support_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull(),
+  label: text("label").notNull(),
+  type: text("type").notNull(),
+  options: text("options"),
+  isRequired: boolean("is_required").default(true),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSupportQuestionSchema = createInsertSchema(supportQuestions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSupportQuestion = z.infer<typeof insertSupportQuestionSchema>;
+export type SupportQuestion = typeof supportQuestions.$inferSelect;
+
+// ============ SUPPORT SUBMISSIONS ============
+export const supportSubmissions = pgTable("support_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  status: text("status").default("pending"),
+  answers: text("answers"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupportSubmissionSchema = createInsertSchema(supportSubmissions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSupportSubmission = z.infer<typeof insertSupportSubmissionSchema>;
+export type SupportSubmission = typeof supportSubmissions.$inferSelect;
+
+// ============ SUPPORT MESSAGES ============
+export const supportMessages = pgTable("support_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  submissionId: varchar("submission_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSupportMessageSchema = createInsertSchema(supportMessages).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
+export type SupportMessage = typeof supportMessages.$inferSelect;
+
 // ============ STAFF HIERARCHY (for Meet the Team) ============
 export const STAFF_HIERARCHY = [
   "director",

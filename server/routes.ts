@@ -1470,5 +1470,356 @@ export async function registerRoutes(
     }
   });
 
+  // ============ SERVER UPDATES ============
+  app.get("/api/server-updates", async (_req, res) => {
+    try {
+      const updates = await storage.getServerUpdates();
+      const allUsers = await storage.getAllUsers();
+      const enriched = updates.map(u => {
+        const author = allUsers.find(a => a.id === u.authorId);
+        return { ...u, authorName: author?.username || "Unknown", authorAvatar: author?.avatar || null, authorDiscordId: author?.discordId || null };
+      });
+      res.json({ updates: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch server updates" });
+    }
+  });
+
+  app.post("/api/server-updates", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["manager", "executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Manager or above required" });
+      }
+      const { title, description, imageUrl } = req.body;
+      if (!title || !description) {
+        return res.status(400).json({ error: "Title and description required" });
+      }
+      const update = await storage.createServerUpdate({ title, description, imageUrl: imageUrl || null, authorId: req.user!.id });
+      res.json({ update });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create server update" });
+    }
+  });
+
+  app.delete("/api/server-updates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["manager", "executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Manager or above required" });
+      }
+      await storage.deleteServerUpdate(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete server update" });
+    }
+  });
+
+  // ============ SUPPORT ROUTES ============
+  app.get("/api/support/forms", async (_req, res) => {
+    try {
+      const forms = await storage.getSupportForms();
+      res.json({ forms });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch support forms" });
+    }
+  });
+
+  app.get("/api/support/forms/:id", async (req, res) => {
+    try {
+      const form = await storage.getSupportForm(req.params.id as string);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+      res.json({ form });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch form" });
+    }
+  });
+
+  app.patch("/api/support/forms/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      const existingForm = await storage.getSupportForm(req.params.id as string);
+      if (!existingForm) return res.status(404).json({ error: "Form not found" });
+
+      const isTopTier = tier === "director" || tier === "executive";
+      const hasFormAccess = tier && (existingForm.accessTiers || []).includes(tier);
+
+      const { title, description, isOpen, accessTiers } = req.body;
+
+      if ((title !== undefined || description !== undefined || accessTiers !== undefined) && !isTopTier) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+
+      if (isOpen !== undefined && !isTopTier && !hasFormAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const updates: any = {};
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (isOpen !== undefined) updates.isOpen = isOpen;
+      if (accessTiers !== undefined) updates.accessTiers = accessTiers;
+      const form = await storage.updateSupportForm(req.params.id as string, updates);
+      res.json({ form });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update form" });
+    }
+  });
+
+  app.get("/api/support/forms/:id/questions", async (req, res) => {
+    try {
+      const questions = await storage.getSupportQuestionsByForm(req.params.id as string);
+      res.json({ questions });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch questions" });
+    }
+  });
+
+  app.put("/api/support/forms/:id/questions", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const formId = req.params.id as string;
+      const { questions } = req.body;
+      await storage.deleteSupportQuestionsByForm(formId);
+      const created = [];
+      for (const q of questions) {
+        const question = await storage.createSupportQuestion({
+          formId,
+          label: q.label,
+          type: q.type,
+          options: q.options || null,
+          isRequired: q.isRequired ?? true,
+          priority: q.priority ?? 0,
+        });
+        created.push(question);
+      }
+      res.json({ questions: created });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update questions" });
+    }
+  });
+
+  app.get("/api/support/forms/:id/submissions", isAuthenticated, async (req, res) => {
+    try {
+      const form = await storage.getSupportForm(req.params.id as string);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      const tier = req.user?.staffTier;
+      const hasAccess = tier && (form.accessTiers || []).includes(tier);
+      const isTopTier = tier === "director" || tier === "executive";
+
+      if (!hasAccess && !isTopTier) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const submissions = await storage.getSupportSubmissionsByForm(form.id);
+      const allUsers = await storage.getAllUsers();
+      const enriched = submissions.map(sub => {
+        const u = allUsers.find(a => a.id === sub.userId);
+        return { ...sub, username: u?.username || "Unknown", avatar: u?.avatar || null, discordId: u?.discordId || null };
+      });
+      res.json({ submissions: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submissions" });
+    }
+  });
+
+  app.post("/api/support/forms/:id/submissions", isAuthenticated, async (req, res) => {
+    try {
+      const form = await storage.getSupportForm(req.params.id as string);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+      if (!form.isOpen) return res.status(400).json({ error: "This form is currently closed" });
+
+      const { answers } = req.body;
+      const submission = await storage.createSupportSubmission({
+        formId: form.id,
+        userId: req.user!.id,
+        answers: JSON.stringify(answers),
+        status: "pending",
+      });
+
+      const allUsers = await storage.getAllUsers();
+      const recipients = allUsers.filter(u => u.staffTier && (form.accessTiers || []).includes(u.staffTier));
+      for (const recipient of recipients) {
+        await storage.createNotification({
+          userId: recipient.id,
+          type: "application_submitted",
+          title: "New Support Submission",
+          message: `${req.user!.username} submitted a ${form.title} application.`,
+          link: `/support?form=${form.id}&submission=${submission.id}`,
+          relatedId: submission.id,
+          isRead: false,
+        });
+      }
+
+      res.json({ submission });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to submit application" });
+    }
+  });
+
+  app.get("/api/support/submissions/:id", isAuthenticated, async (req, res) => {
+    try {
+      const submission = await storage.getSupportSubmission(req.params.id as string);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const form = await storage.getSupportForm(submission.formId);
+      const tier = req.user?.staffTier;
+      const isOwner = submission.userId === req.user?.id;
+      const hasAccess = tier && form && (form.accessTiers || []).includes(tier);
+      const isTopTier = tier === "director" || tier === "executive";
+
+      if (!isOwner && !hasAccess && !isTopTier) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const user = await storage.getUser(submission.userId);
+      const questions = form ? await storage.getSupportQuestionsByForm(form.id) : [];
+      res.json({
+        submission: { ...submission, username: user?.username || "Unknown", avatar: user?.avatar || null, discordId: user?.discordId || null },
+        form,
+        questions,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submission" });
+    }
+  });
+
+  app.patch("/api/support/submissions/:id/status", isAuthenticated, async (req, res) => {
+    try {
+      const submission = await storage.getSupportSubmission(req.params.id as string);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const form = await storage.getSupportForm(submission.formId);
+      const tier = req.user?.staffTier;
+      const hasAccess = tier && form && (form.accessTiers || []).includes(tier);
+      const isTopTier = tier === "director" || tier === "executive";
+
+      if (!hasAccess && !isTopTier) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { status } = req.body;
+      const updated = await storage.updateSupportSubmission(submission.id, { status });
+
+      await storage.createNotification({
+        userId: submission.userId,
+        type: "status_change",
+        title: "Application Updated",
+        message: `Your ${form?.title || "support"} application has been ${status}.`,
+        link: `/support?form=${submission.formId}&submission=${submission.id}`,
+        relatedId: submission.id,
+        isRead: false,
+      });
+
+      res.json({ submission: updated });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+
+  app.get("/api/support/submissions/:id/messages", isAuthenticated, async (req, res) => {
+    try {
+      const submission = await storage.getSupportSubmission(req.params.id as string);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const messages = await storage.getSupportMessagesBySubmission(submission.id);
+      const allUsers = await storage.getAllUsers();
+      const enriched = messages.map(m => {
+        const u = allUsers.find(a => a.id === m.userId);
+        return { ...m, username: u?.username || "Unknown", avatar: u?.avatar || null, discordId: u?.discordId || null };
+      });
+      res.json({ messages: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  app.post("/api/support/submissions/:id/messages", isAuthenticated, async (req, res) => {
+    try {
+      const submission = await storage.getSupportSubmission(req.params.id as string);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      const form = await storage.getSupportForm(submission.formId);
+      const tier = req.user?.staffTier;
+      const isOwner = submission.userId === req.user?.id;
+      const hasAccess = tier && form && (form.accessTiers || []).includes(tier);
+      const isTopTier = tier === "director" || tier === "executive";
+
+      if (!isOwner && !hasAccess && !isTopTier) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { content } = req.body;
+      const message = await storage.createSupportMessage({
+        submissionId: submission.id,
+        userId: req.user!.id,
+        content,
+      });
+
+      if (isOwner) {
+        const allUsers = await storage.getAllUsers();
+        const staffRecipients = allUsers.filter(u => u.staffTier && form && (form.accessTiers || []).includes(u.staffTier));
+        for (const recipient of staffRecipients) {
+          await storage.createNotification({
+            userId: recipient.id,
+            type: "application_response",
+            title: "Application Reply",
+            message: `${req.user!.username} replied to their ${form?.title || "support"} application.`,
+            link: `/support?form=${submission.formId}&submission=${submission.id}`,
+            relatedId: submission.id,
+            isRead: false,
+          });
+        }
+      } else {
+        await storage.createNotification({
+          userId: submission.userId,
+          type: "application_response",
+          title: "Application Response",
+          message: `${req.user!.username} responded to your ${form?.title || "support"} application.`,
+          link: `/support?form=${submission.formId}&submission=${submission.id}`,
+          relatedId: submission.id,
+          isRead: false,
+        });
+      }
+
+      const user = await storage.getUser(req.user!.id);
+      res.json({ ...message, username: user?.username || "Unknown", avatar: user?.avatar || null, discordId: user?.discordId || null });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  app.delete("/api/support/submissions/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      const hasAccess = tier && ["manager", "executive", "director"].includes(tier);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      await storage.deleteSupportSubmission(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete submission" });
+    }
+  });
+
+  app.get("/api/support/my-submissions", isAuthenticated, async (req, res) => {
+    try {
+      const submissions = await storage.getSupportSubmissionsByUser(req.user!.id);
+      const forms = await storage.getSupportForms();
+      const enriched = submissions.map(sub => {
+        const form = forms.find(f => f.id === sub.formId);
+        return { ...sub, formTitle: form?.title || "Unknown" };
+      });
+      res.json({ submissions: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submissions" });
+    }
+  });
+
   return httpServer;
 }

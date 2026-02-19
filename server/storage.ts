@@ -15,7 +15,13 @@ import {
   type WebsiteRole, type InsertWebsiteRole,
   type UserRoleAssignment, type InsertUserRoleAssignment,
   type AosSquad, type InsertAosSquad,
-  users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads
+  type ServerUpdate, type InsertServerUpdate,
+  type SupportForm, type InsertSupportForm,
+  type SupportQuestion, type InsertSupportQuestion,
+  type SupportSubmission, type InsertSupportSubmission,
+  type SupportMessage, type InsertSupportMessage,
+  users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads,
+  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc } from "drizzle-orm";
@@ -128,6 +134,35 @@ export interface IStorage {
   updateAosSquad(id: string, updates: Partial<InsertAosSquad>): Promise<AosSquad | undefined>;
   deleteAosSquad(id: string): Promise<void>;
   getUsersWithRole(roleId: string): Promise<UserRoleAssignment[]>;
+
+  // Server Updates
+  getServerUpdates(): Promise<ServerUpdate[]>;
+  createServerUpdate(update: InsertServerUpdate): Promise<ServerUpdate>;
+  deleteServerUpdate(id: string): Promise<void>;
+
+  // Support Forms
+  getSupportForms(): Promise<SupportForm[]>;
+  getSupportForm(id: string): Promise<SupportForm | undefined>;
+  getSupportFormByKey(key: string): Promise<SupportForm | undefined>;
+  createSupportForm(form: InsertSupportForm): Promise<SupportForm>;
+  updateSupportForm(id: string, updates: Partial<InsertSupportForm>): Promise<SupportForm | undefined>;
+
+  // Support Questions
+  getSupportQuestionsByForm(formId: string): Promise<SupportQuestion[]>;
+  createSupportQuestion(question: InsertSupportQuestion): Promise<SupportQuestion>;
+  deleteSupportQuestionsByForm(formId: string): Promise<void>;
+
+  // Support Submissions
+  getSupportSubmissionsByForm(formId: string): Promise<SupportSubmission[]>;
+  getSupportSubmissionsByUser(userId: string): Promise<SupportSubmission[]>;
+  getSupportSubmission(id: string): Promise<SupportSubmission | undefined>;
+  createSupportSubmission(submission: InsertSupportSubmission): Promise<SupportSubmission>;
+  updateSupportSubmission(id: string, updates: Partial<InsertSupportSubmission>): Promise<SupportSubmission | undefined>;
+  deleteSupportSubmission(id: string): Promise<void>;
+
+  // Support Messages
+  getSupportMessagesBySubmission(submissionId: string): Promise<SupportMessage[]>;
+  createSupportMessage(message: InsertSupportMessage): Promise<SupportMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -551,6 +586,98 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAosSquad(id: string): Promise<void> {
     await db.delete(aosSquads).where(eq(aosSquads.id, id));
+  }
+
+  // ============ SERVER UPDATES ============
+  async getServerUpdates(): Promise<ServerUpdate[]> {
+    return await db.select().from(serverUpdates).orderBy(desc(serverUpdates.createdAt));
+  }
+
+  async createServerUpdate(update: InsertServerUpdate): Promise<ServerUpdate> {
+    const [created] = await db.insert(serverUpdates).values(update).returning();
+    return created;
+  }
+
+  async deleteServerUpdate(id: string): Promise<void> {
+    await db.delete(serverUpdates).where(eq(serverUpdates.id, id));
+  }
+
+  // ============ SUPPORT FORMS ============
+  async getSupportForms(): Promise<SupportForm[]> {
+    return await db.select().from(supportForms).orderBy(asc(supportForms.createdAt));
+  }
+
+  async getSupportForm(id: string): Promise<SupportForm | undefined> {
+    const [form] = await db.select().from(supportForms).where(eq(supportForms.id, id));
+    return form;
+  }
+
+  async getSupportFormByKey(key: string): Promise<SupportForm | undefined> {
+    const [form] = await db.select().from(supportForms).where(eq(supportForms.key, key));
+    return form;
+  }
+
+  async createSupportForm(form: InsertSupportForm): Promise<SupportForm> {
+    const [created] = await db.insert(supportForms).values(form).returning();
+    return created;
+  }
+
+  async updateSupportForm(id: string, updates: Partial<InsertSupportForm>): Promise<SupportForm | undefined> {
+    const [updated] = await db.update(supportForms).set({ ...updates, updatedAt: new Date() }).where(eq(supportForms.id, id)).returning();
+    return updated;
+  }
+
+  // ============ SUPPORT QUESTIONS ============
+  async getSupportQuestionsByForm(formId: string): Promise<SupportQuestion[]> {
+    return await db.select().from(supportQuestions).where(eq(supportQuestions.formId, formId)).orderBy(asc(supportQuestions.priority));
+  }
+
+  async createSupportQuestion(question: InsertSupportQuestion): Promise<SupportQuestion> {
+    const [created] = await db.insert(supportQuestions).values(question).returning();
+    return created;
+  }
+
+  async deleteSupportQuestionsByForm(formId: string): Promise<void> {
+    await db.delete(supportQuestions).where(eq(supportQuestions.formId, formId));
+  }
+
+  // ============ SUPPORT SUBMISSIONS ============
+  async getSupportSubmissionsByForm(formId: string): Promise<SupportSubmission[]> {
+    return await db.select().from(supportSubmissions).where(eq(supportSubmissions.formId, formId)).orderBy(desc(supportSubmissions.createdAt));
+  }
+
+  async getSupportSubmissionsByUser(userId: string): Promise<SupportSubmission[]> {
+    return await db.select().from(supportSubmissions).where(eq(supportSubmissions.userId, userId)).orderBy(desc(supportSubmissions.createdAt));
+  }
+
+  async getSupportSubmission(id: string): Promise<SupportSubmission | undefined> {
+    const [sub] = await db.select().from(supportSubmissions).where(eq(supportSubmissions.id, id));
+    return sub;
+  }
+
+  async createSupportSubmission(submission: InsertSupportSubmission): Promise<SupportSubmission> {
+    const [created] = await db.insert(supportSubmissions).values(submission).returning();
+    return created;
+  }
+
+  async updateSupportSubmission(id: string, updates: Partial<InsertSupportSubmission>): Promise<SupportSubmission | undefined> {
+    const [updated] = await db.update(supportSubmissions).set({ ...updates, updatedAt: new Date() }).where(eq(supportSubmissions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSupportSubmission(id: string): Promise<void> {
+    await db.delete(supportMessages).where(eq(supportMessages.submissionId, id));
+    await db.delete(supportSubmissions).where(eq(supportSubmissions.id, id));
+  }
+
+  // ============ SUPPORT MESSAGES ============
+  async getSupportMessagesBySubmission(submissionId: string): Promise<SupportMessage[]> {
+    return await db.select().from(supportMessages).where(eq(supportMessages.submissionId, submissionId)).orderBy(asc(supportMessages.createdAt));
+  }
+
+  async createSupportMessage(message: InsertSupportMessage): Promise<SupportMessage> {
+    const [created] = await db.insert(supportMessages).values(message).returning();
+    return created;
   }
 }
 

@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight } from "lucide-react";
+import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight, Megaphone, Plus, Trash2, Calendar, ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import { useUser, loginWithDiscord } from "@/lib/auth";
 import heroImg from "@/assets/hero-auckland.png";
@@ -15,6 +20,203 @@ async function fetchSetting(key: string): Promise<string | null> {
   if (!res.ok) return null;
   const data = await res.json();
   return data.value;
+}
+
+interface ServerUpdate {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string | null;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string | null;
+  authorDiscordId: string | null;
+  createdAt: string;
+}
+
+function ServerUpdatesSection({ user }: { user: any }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newImageUrl, setNewImageUrl] = useState("");
+
+  const canPost = user?.staffTier && ["manager", "executive", "director"].includes(user.staffTier);
+
+  const { data: updatesData, isLoading } = useQuery({
+    queryKey: ["server-updates"],
+    queryFn: async () => {
+      const res = await fetch("/api/server-updates");
+      if (!res.ok) return { updates: [] };
+      return res.json() as Promise<{ updates: ServerUpdate[] }>;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/server-updates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: newTitle, description: newDescription, imageUrl: newImageUrl || null }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Update Posted" });
+      setShowCreateDialog(false);
+      setNewTitle("");
+      setNewDescription("");
+      setNewImageUrl("");
+      queryClient.invalidateQueries({ queryKey: ["server-updates"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to post update", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/server-updates/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-updates"] });
+      toast({ title: "Update deleted" });
+    },
+  });
+
+  const updates = updatesData?.updates || [];
+  const latestUpdate = updates[0];
+  const olderUpdates = updates.slice(1);
+
+  if (isLoading) {
+    return <Skeleton className="h-48 w-full" />;
+  }
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.6 }}
+    >
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Megaphone className="w-6 h-6 text-primary" />
+          <h2 className="text-3xl font-bold font-display" data-testid="text-server-updates-title">Server Updates</h2>
+        </div>
+        {canPost && (
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" data-testid="button-create-update">
+                <Plus className="w-4 h-4" /> New Update
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-zinc-900 border-white/10 max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Post Server Update</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Title</Label>
+                  <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Update title..." data-testid="input-update-title" />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <textarea
+                    className="w-full bg-zinc-800 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[120px]"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="What's new..."
+                    data-testid="textarea-update-description"
+                  />
+                </div>
+                <div>
+                  <Label>Image URL (optional)</Label>
+                  <Input value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://..." data-testid="input-update-image" />
+                </div>
+                <Button onClick={() => createMutation.mutate()} disabled={!newTitle || !newDescription || createMutation.isPending} className="w-full" data-testid="button-submit-update">
+                  {createMutation.isPending ? "Posting..." : "Post Update"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {updates.length === 0 ? (
+        <Card className="bg-zinc-900/40 border-white/5 p-8 text-center">
+          <p className="text-muted-foreground">No server updates yet.</p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {latestUpdate && (
+            <Card className="bg-zinc-900/40 border-white/5 overflow-hidden" data-testid={`update-latest-${latestUpdate.id}`}>
+              {latestUpdate.imageUrl && (
+                <div className="w-full h-64 overflow-hidden">
+                  <img src={latestUpdate.imageUrl} alt={latestUpdate.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <CardContent className="p-6 md:p-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold mb-3" data-testid="text-latest-update-title">{latestUpdate.title}</h3>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line mb-4" data-testid="text-latest-update-description">{latestUpdate.description}</p>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      {latestUpdate.authorAvatar && latestUpdate.authorDiscordId ? (
+                        <img src={`https://cdn.discordapp.com/avatars/${latestUpdate.authorDiscordId}/${latestUpdate.authorAvatar}.png?size=32`} alt="" className="w-6 h-6 rounded-full" />
+                      ) : null}
+                      <span>{latestUpdate.authorName}</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(latestUpdate.createdAt).toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    </div>
+                  </div>
+                  {canPost && (
+                    <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300 shrink-0" onClick={() => deleteMutation.mutate(latestUpdate.id)} data-testid={`button-delete-update-${latestUpdate.id}`}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {olderUpdates.length > 0 && (
+            <div className="space-y-3">
+              {olderUpdates.map((update) => (
+                <Card key={update.id} className="bg-zinc-900/30 border-white/5" data-testid={`update-${update.id}`}>
+                  <CardContent className="flex items-center gap-4 py-4 px-5">
+                    {update.imageUrl && (
+                      <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
+                        <img src={update.imageUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm truncate">{update.title}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{update.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {update.authorName} · {new Date(update.createdAt).toLocaleDateString("en-NZ", { day: "numeric", month: "short" })}
+                      </p>
+                    </div>
+                    {canPost && (
+                      <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300 shrink-0" onClick={() => deleteMutation.mutate(update.id)} data-testid={`button-delete-update-${update.id}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </motion.section>
+  );
 }
 
 export default function Home() {
@@ -132,6 +334,9 @@ export default function Home() {
             </Card>
           </div>
         )}
+
+        {/* Server Updates */}
+        <ServerUpdatesSection user={user} />
 
         {/* About Section */}
         <motion.section

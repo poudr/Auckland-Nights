@@ -11,6 +11,7 @@ import Departments from "@/pages/Departments";
 import DepartmentPortal from "@/pages/DepartmentPortal";
 import Admin from "@/pages/Admin";
 import Rules from "@/pages/Rules";
+import Support from "@/pages/Support";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/departments" component={Departments} />
       <Route path="/departments/:code" component={DepartmentPortal} />
       <Route path="/departments/:code/:tab" component={DepartmentPortal} />
+      <Route path="/support" component={Support} />
       <Route path="/admin" component={Admin} />
       <Route path="/admin/:tab" component={Admin} />
       <Route component={NotFound} />

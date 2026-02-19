@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { departments, ranks, menuItems, websiteRoles, roleMappings } from "@shared/schema";
+import { departments, ranks, menuItems, websiteRoles, roleMappings, supportForms } from "@shared/schema";
 
 export async function seedDatabase() {
   // Check if already seeded
@@ -90,7 +90,19 @@ export async function seedDatabase() {
     { label: "How to Join", path: "/join", priority: 1, isVisible: true },
     { label: "Meet the Team", path: "/team", priority: 2, isVisible: true },
     { label: "Departments", path: "/departments", priority: 3, isVisible: true },
+    { label: "Support", path: "/support", priority: 4, isVisible: true },
     { label: "Admin", path: "/admin", priority: 10, isVisible: true, requiredPermission: "admin" },
+  ]);
+
+  // Seed Support Forms
+  await db.insert(supportForms).values([
+    { key: "staff_applications", title: "Staff Applications", description: "Apply to join our staff team and help manage the server.", accessTiers: ["executive", "director"] },
+    { key: "ban_appeals", title: "Ban Appeals", description: "Appeal a ban or punishment you've received.", accessTiers: ["manager", "executive", "director"] },
+    { key: "events_staff", title: "Events Staff Applications", description: "Apply to help organize and run community events.", accessTiers: ["manager", "executive", "director"] },
+    { key: "social_media", title: "Social Media Applications", description: "Apply to manage our social media presence.", accessTiers: ["manager", "executive", "director"] },
+    { key: "civx_applications", title: "CivX Applications", description: "Apply for CivX roles and activities.", accessTiers: ["manager", "executive", "director"] },
+    { key: "gang_applications", title: "Gang Applications", description: "Apply to register or manage a gang.", accessTiers: ["manager", "executive", "director"] },
+    { key: "development_applications", title: "Development Applications", description: "Apply to join the development team.", accessTiers: ["manager", "executive", "director"] },
   ]);
 
   console.log("Database seeded successfully!");
