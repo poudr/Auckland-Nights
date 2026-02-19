@@ -70,7 +70,7 @@ export default function Join() {
                       </div>
                       {user && (
                         <p className="text-green-500 text-sm flex items-center gap-2">
-                          ✓ Connected as {user.username}
+                          ✓ Connected as {user.displayName || user.username}
                         </p>
                       )}
                     </div>

@@ -269,6 +269,7 @@ export async function registerRoutes(
           grouped[member.staffTier].push({
             id: member.id,
             username: member.username,
+            displayName: member.displayName,
             avatar: member.avatar,
             discordId: member.discordId,
             staffTier: member.staffTier,
@@ -629,6 +630,7 @@ export async function registerRoutes(
             ...sub,
             formTitle: form?.title || "Unknown Form",
             username: submitter?.username || "Unknown",
+            displayName: submitter?.displayName || null,
             avatar: submitter?.avatar || null,
             discordId: submitter?.discordId || "",
           };
@@ -644,6 +646,7 @@ export async function registerRoutes(
           ...sub,
           formTitle: form?.title || "Unknown Form",
           username: user.username,
+          displayName: user.displayName,
           avatar: user.avatar,
           discordId: user.discordId,
         };
@@ -676,6 +679,7 @@ export async function registerRoutes(
         return {
           ...msg,
           username: sender?.username || "Unknown",
+          displayName: sender?.displayName || null,
           avatar: sender?.avatar || null,
           discordId: sender?.discordId || "",
           staffTier: sender?.staffTier || null,
@@ -687,7 +691,7 @@ export async function registerRoutes(
         form,
         questions,
         messages: enrichedMessages,
-        submitter: submitter ? { username: submitter.username, avatar: submitter.avatar, discordId: submitter.discordId } : null,
+        submitter: submitter ? { username: submitter.username, displayName: submitter.displayName, avatar: submitter.avatar, discordId: submitter.discordId } : null,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch submission" });
@@ -751,7 +755,7 @@ export async function registerRoutes(
           userId: recipientId,
           type: "application_submitted",
           title: "New Application",
-          message: `${user.username} submitted an application for ${dept?.name || code}: ${form?.title || "Unknown"}`,
+          message: `${user.displayName || user.username} submitted an application for ${dept?.name || code}: ${form?.title || "Unknown"}`,
           link: `/departments/${code}/applications?submission=${submission.id}`,
           relatedId: submission.id,
           isRead: false,
@@ -929,7 +933,7 @@ export async function registerRoutes(
           userId: submission.userId,
           type: "application_response",
           title: "Application Response",
-          message: `${user.username} responded to your ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
+          message: `${user.displayName || user.username} responded to your ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
           link: `/departments/${submission.departmentCode}/applications?submission=${submission.id}`,
           relatedId: submission.id,
           isRead: false,
@@ -944,7 +948,7 @@ export async function registerRoutes(
             userId: leader.id,
             type: "application_response",
             title: "Application Reply",
-            message: `${user.username} replied to their ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
+            message: `${user.displayName || user.username} replied to their ${dept?.name || submission.departmentCode} application (${form?.title || ""}).`,
             link: `/departments/${submission.departmentCode}/applications?submission=${submission.id}`,
             relatedId: submission.id,
             isRead: false,
@@ -955,6 +959,7 @@ export async function registerRoutes(
       res.json({
         ...message,
         username: user.username,
+        displayName: user.displayName,
         avatar: user.avatar,
         discordId: user.discordId,
         staffTier: user.staffTier,
@@ -1593,7 +1598,7 @@ export async function registerRoutes(
       const allUsers = await storage.getAllUsers();
       const enriched = updates.map(u => {
         const author = allUsers.find(a => a.id === u.authorId);
-        return { ...u, authorName: author?.username || "Unknown", authorAvatar: author?.avatar || null, authorDiscordId: author?.discordId || null };
+        return { ...u, authorName: author?.displayName || author?.username || "Unknown", authorAvatar: author?.avatar || null, authorDiscordId: author?.discordId || null };
       });
       res.json({ updates: enriched });
     } catch (error) {
@@ -1753,7 +1758,7 @@ export async function registerRoutes(
       const allUsers = await storage.getAllUsers();
       const enriched = submissions.map(sub => {
         const u = allUsers.find(a => a.id === sub.userId);
-        return { ...sub, username: u?.username || "Unknown", avatar: u?.avatar || null, discordId: u?.discordId || null };
+        return { ...sub, username: u?.username || "Unknown", displayName: u?.displayName || null, avatar: u?.avatar || null, discordId: u?.discordId || null };
       });
       res.json({ submissions: enriched });
     } catch (error) {
@@ -1782,7 +1787,7 @@ export async function registerRoutes(
           userId: recipient.id,
           type: "application_submitted",
           title: "New Support Submission",
-          message: `${req.user!.username} submitted a ${form.title} application.`,
+          message: `${req.user!.displayName || req.user!.username} submitted a ${form.title} application.`,
           link: `/support?form=${form.id}&submission=${submission.id}`,
           relatedId: submission.id,
           isRead: false,
@@ -1813,7 +1818,7 @@ export async function registerRoutes(
       const user = await storage.getUser(submission.userId);
       const questions = form ? await storage.getSupportQuestionsByForm(form.id) : [];
       res.json({
-        submission: { ...submission, username: user?.username || "Unknown", avatar: user?.avatar || null, discordId: user?.discordId || null },
+        submission: { ...submission, username: user?.username || "Unknown", displayName: user?.displayName || null, avatar: user?.avatar || null, discordId: user?.discordId || null },
         form,
         questions,
       });
@@ -1864,7 +1869,7 @@ export async function registerRoutes(
       const allUsers = await storage.getAllUsers();
       const enriched = messages.map(m => {
         const u = allUsers.find(a => a.id === m.userId);
-        return { ...m, username: u?.username || "Unknown", avatar: u?.avatar || null, discordId: u?.discordId || null };
+        return { ...m, username: u?.username || "Unknown", displayName: u?.displayName || null, avatar: u?.avatar || null, discordId: u?.discordId || null };
       });
       res.json({ messages: enriched });
     } catch (error) {
@@ -1902,7 +1907,7 @@ export async function registerRoutes(
             userId: recipient.id,
             type: "application_response",
             title: "Application Reply",
-            message: `${req.user!.username} replied to their ${form?.title || "support"} application.`,
+            message: `${req.user!.displayName || req.user!.username} replied to their ${form?.title || "support"} application.`,
             link: `/support?form=${submission.formId}&submission=${submission.id}`,
             relatedId: submission.id,
             isRead: false,
@@ -1913,7 +1918,7 @@ export async function registerRoutes(
           userId: submission.userId,
           type: "application_response",
           title: "Application Response",
-          message: `${req.user!.username} responded to your ${form?.title || "support"} application.`,
+          message: `${req.user!.displayName || req.user!.username} responded to your ${form?.title || "support"} application.`,
           link: `/support?form=${submission.formId}&submission=${submission.id}`,
           relatedId: submission.id,
           isRead: false,
@@ -1921,7 +1926,7 @@ export async function registerRoutes(
       }
 
       const user = await storage.getUser(req.user!.id);
-      res.json({ ...message, username: user?.username || "Unknown", avatar: user?.avatar || null, discordId: user?.discordId || null });
+      res.json({ ...message, username: user?.username || "Unknown", displayName: user?.displayName || null, avatar: user?.avatar || null, discordId: user?.discordId || null });
     } catch (error) {
       res.status(500).json({ error: "Failed to send message" });
     }

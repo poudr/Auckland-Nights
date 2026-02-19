@@ -1335,11 +1335,11 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
                   data-testid={`submission-${sub.id}`}
                 >
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-                    <img src={sub.avatar ? `https://cdn.discordapp.com/avatars/${sub.discordId}/${sub.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(sub.discordId) % 5}.png`} alt={sub.username} className="w-full h-full object-cover" />
+                    <img src={sub.avatar ? `https://cdn.discordapp.com/avatars/${sub.discordId}/${sub.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(sub.discordId) % 5}.png`} alt={sub.displayName || sub.username} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">{sub.username}</span>
+                      <span className="font-medium text-sm truncate">{sub.displayName || sub.username}</span>
                       <span className="text-xs text-muted-foreground">•</span>
                       <span className="text-xs text-muted-foreground">{sub.formTitle}</span>
                     </div>
@@ -1917,12 +1917,12 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
             <div className="flex items-center gap-3">
               {submitter && (
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-                  <img src={submitter.avatar ? `https://cdn.discordapp.com/avatars/${submitter.discordId}/${submitter.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(submitter.discordId) % 5}.png`} alt={submitter.username} className="w-full h-full object-cover" />
+                  <img src={submitter.avatar ? `https://cdn.discordapp.com/avatars/${submitter.discordId}/${submitter.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(submitter.discordId) % 5}.png`} alt={submitter.displayName || submitter.username} className="w-full h-full object-cover" />
                 </div>
               )}
               <div>
                 <CardTitle>{form?.title || "Application"}</CardTitle>
-                <CardDescription>by {submitter?.username || "Unknown"} • {submission ? new Date(submission.createdAt).toLocaleDateString() : ""}</CardDescription>
+                <CardDescription>by {submitter?.displayName || submitter?.username || "Unknown"} • {submission ? new Date(submission.createdAt).toLocaleDateString() : ""}</CardDescription>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1947,7 +1947,7 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
         {showAcceptPanel && isLeadership && (
           <div className="mx-6 mb-4 p-4 rounded-lg bg-green-500/5 border border-green-500/20 space-y-4" data-testid="accept-roles-panel">
             <h4 className="font-semibold text-green-400 text-sm">Roles to Assign on Accept</h4>
-            <p className="text-xs text-muted-foreground">Select which roles to give to <span className="font-medium text-foreground">{submitter?.username}</span>. Defaults are pre-filled from the form configuration.</p>
+            <p className="text-xs text-muted-foreground">Select which roles to give to <span className="font-medium text-foreground">{submitter?.displayName || submitter?.username}</span>. Defaults are pre-filled from the form configuration.</p>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -2033,11 +2033,11 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
             return (
               <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`} data-testid={`message-${msg.id}`}>
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-                  <img src={msg.avatar ? `https://cdn.discordapp.com/avatars/${msg.discordId}/${msg.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(msg.discordId) % 5}.png`} alt={msg.username} className="w-full h-full object-cover" />
+                  <img src={msg.avatar ? `https://cdn.discordapp.com/avatars/${msg.discordId}/${msg.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(msg.discordId) % 5}.png`} alt={msg.displayName || msg.username} className="w-full h-full object-cover" />
                 </div>
                 <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"}`}>
                   <div className={`flex items-center gap-2 mb-1 ${isMe ? "justify-end" : ""}`}>
-                    <span className="text-xs font-medium">{msg.username}</span>
+                    <span className="text-xs font-medium">{msg.displayName || msg.username}</span>
                     {msg.staffTier && <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{msg.staffTier}</Badge>}
                     <span className="text-[10px] text-muted-foreground">{new Date(msg.createdAt).toLocaleString()}</span>
                   </div>
@@ -2617,9 +2617,9 @@ function AosSquadAssignments({ squads, deptColor }: { squads: AosSquad[]; deptCo
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-                  <img src={getAvatarUrl(member.user)} alt={member.user.username} className="w-full h-full object-cover" />
+                  <img src={getAvatarUrl(member.user)} alt={member.user.displayName || member.user.username} className="w-full h-full object-cover" />
                 </div>
-                <span className="text-sm font-medium truncate">{member.user.username}</span>
+                <span className="text-sm font-medium truncate">{member.user.displayName || member.user.username}</span>
               </div>
               <div className="text-center">
                 <span className="text-xs font-medium" style={{ color: deptColor }}>{rank?.name || "Unknown"}</span>

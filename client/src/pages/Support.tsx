@@ -161,10 +161,10 @@ function SubmissionThread({ submissionId, user, hasStaffAccess, onBack }: { subm
               {submission.avatar && submission.discordId ? (
                 <img src={`https://cdn.discordapp.com/avatars/${submission.discordId}/${submission.avatar}.png?size=48`} alt="" className="w-10 h-10 rounded-full" />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold">{submission.username?.[0]}</div>
+                <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold">{(submission.displayName || submission.username)?.[0]}</div>
               )}
               <div>
-                <CardTitle className="text-lg">{submission.username}'s {form?.title || "Application"}</CardTitle>
+                <CardTitle className="text-lg">{submission.displayName || submission.username}'s {form?.title || "Application"}</CardTitle>
                 <CardDescription>Submitted {new Date(submission.createdAt).toLocaleDateString()}</CardDescription>
               </div>
             </div>
@@ -211,7 +211,7 @@ function SubmissionThread({ submissionId, user, hasStaffAccess, onBack }: { subm
                 {msg.avatar && msg.discordId ? (
                   <img src={`https://cdn.discordapp.com/avatars/${msg.discordId}/${msg.avatar}.png?size=24`} alt="" className="w-5 h-5 rounded-full" />
                 ) : null}
-                <span className="text-sm font-medium">{msg.username}</span>
+                <span className="text-sm font-medium">{msg.displayName || msg.username}</span>
                 <span className="text-xs text-muted-foreground">{new Date(msg.createdAt).toLocaleString()}</span>
               </div>
               <p className="text-sm whitespace-pre-line">{msg.content}</p>
@@ -683,10 +683,10 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
                       {sub.avatar && sub.discordId ? (
                         <img src={`https://cdn.discordapp.com/avatars/${sub.discordId}/${sub.avatar}.png?size=32`} alt="" className="w-8 h-8 rounded-full shrink-0" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold shrink-0">{sub.username?.[0]}</div>
+                        <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold shrink-0">{(sub.displayName || sub.username)?.[0]}</div>
                       )}
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{sub.username}</p>
+                        <p className="text-sm font-medium truncate">{sub.displayName || sub.username}</p>
                         <p className="text-xs text-muted-foreground">{new Date(sub.createdAt).toLocaleDateString()}</p>
                       </div>
                     </div>

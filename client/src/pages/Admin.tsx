@@ -388,13 +388,13 @@ function UserRow({ user }: { user: AdminUser }) {
       <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-800">
         <img 
           src={getAvatarUrl({ discordId: user.discordId, avatar: user.avatar })} 
-          alt={user.username}
+          alt={user.displayName || user.username}
           className="w-full h-full object-cover"
         />
       </div>
       <div className="flex-1">
-        <span className="font-medium">{user.username}</span>
-        <p className="text-xs text-muted-foreground">ID: {user.discordId}</p>
+        <span className="font-medium">{user.displayName || user.username}</span>
+        <p className="text-xs text-muted-foreground">@{user.username} • {user.discordId}</p>
       </div>
       {user.staffTier && (
         <Badge className="capitalize bg-primary text-black">{user.staffTier}</Badge>
@@ -464,6 +464,7 @@ function PlayerManagementTab() {
   const roles = rolesData?.roles || [];
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.displayName && u.displayName.toLowerCase().includes(searchTerm.toLowerCase())) ||
     u.discordId.includes(searchTerm)
   );
 
@@ -493,13 +494,13 @@ function PlayerManagementTab() {
             <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800">
               <img 
                 src={getAvatarUrl({ discordId: user.discordId, avatar: user.avatar })} 
-                alt={user.username}
+                alt={user.displayName || user.username}
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="flex-1">
-              <p className="font-medium">{user.username}</p>
-              <p className="text-xs text-muted-foreground">Discord: {user.discordId}</p>
+              <p className="font-medium">{user.displayName || user.username}</p>
+              <p className="text-xs text-muted-foreground">@{user.username} • {user.discordId}</p>
             </div>
             <div className="flex gap-1 flex-wrap max-w-xs">
               {user.staffTier && (
@@ -520,7 +521,7 @@ function PlayerManagementTab() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Edit Player: {user.username}</DialogTitle>
+                  <DialogTitle>Edit Player: {user.displayName || user.username}</DialogTitle>
                   <DialogDescription>
                     Modify player settings and assign website roles
                   </DialogDescription>
@@ -567,12 +568,12 @@ function EditPlayerForm({
         <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-800">
           <img 
             src={getAvatarUrl({ discordId: user.discordId, avatar: user.avatar })} 
-            alt={user.username}
+            alt={user.displayName || user.username}
             className="w-full h-full object-cover"
           />
         </div>
         <div>
-          <p className="font-bold text-lg">{user.username}</p>
+          <p className="font-bold text-lg">{user.displayName || user.username}</p>
           <p className="text-sm text-muted-foreground">{user.discordId}</p>
         </div>
       </div>

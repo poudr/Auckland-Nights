@@ -169,8 +169,8 @@ export default function Navbar() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2" data-testid="button-user-menu">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={getAvatarUrl(user)} alt={user.username} />
-                    <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={getAvatarUrl(user)} alt={user.displayName || user.username} />
+                    <AvatarFallback>{(user.displayName || user.username).slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <span className="hidden sm:inline">{user.displayName || user.username}</span>
                 </Button>

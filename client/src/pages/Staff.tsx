@@ -10,6 +10,7 @@ interface StaffMember {
   user: {
     id: string;
     username: string;
+    displayName: string | null;
     discriminator: string | null;
     avatar: string | null;
   };
@@ -137,7 +138,7 @@ export default function Staff() {
                                   {staff.user.avatar ? (
                                     <img 
                                       src={`https://cdn.discordapp.com/avatars/${staff.user.id}/${staff.user.avatar}.png`}
-                                      alt={staff.user.username}
+                                      alt={staff.user.displayName || staff.user.username}
                                       className="w-full h-full object-cover"
                                     />
                                   ) : (
@@ -145,7 +146,7 @@ export default function Staff() {
                                   )}
                                 </div>
                                 <div>
-                                  <h3 className="font-bold text-lg">{staff.user.username}</h3>
+                                  <h3 className="font-bold text-lg">{staff.user.displayName || staff.user.username}</h3>
                                   <Badge variant="outline" className="mt-2 border-current opacity-80 text-[10px] py-0 px-2">
                                     {staff.role.name}
                                   </Badge>

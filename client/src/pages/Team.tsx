@@ -123,11 +123,11 @@ export default function Team() {
                               <div className="w-20 h-20 mx-auto mb-4 rounded-xl overflow-hidden bg-zinc-800 ring-2 ring-white/10 group-hover:ring-primary/50 transition-all">
                                 <img 
                                   src={getAvatarUrl(member)} 
-                                  alt={member.username}
+                                  alt={member.displayName || member.username}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
-                              <h3 className="font-bold text-lg mb-1">{member.username}</h3>
+                              <h3 className="font-bold text-lg mb-1">{member.displayName || member.username}</h3>
                               <div className="flex flex-wrap justify-center gap-1">
                                 {(member.staffTiers && member.staffTiers.length > 0 ? member.staffTiers : [member.staffTier]).map((t) => {
                                   const tierConf = TIER_CONFIG[t] || { label: t, hex: "#9ca3af" };
