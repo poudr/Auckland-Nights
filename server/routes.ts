@@ -460,17 +460,32 @@ export async function registerRoutes(
       if (!form) return res.status(404).json({ error: "Form not found" });
 
       if (questions && Array.isArray(questions)) {
-        await storage.deleteQuestionsByForm(form.id);
+        const existingQuestions = await storage.getQuestionsByForm(form.id);
+        
         for (let i = 0; i < questions.length; i++) {
           const q = questions[i];
-          await storage.createApplicationQuestion({
-            formId: form.id,
-            label: q.label,
-            type: q.type,
-            options: q.options ? JSON.stringify(q.options) : null,
-            isRequired: q.isRequired !== false,
-            priority: i,
-          });
+          if (i < existingQuestions.length) {
+            await storage.updateApplicationQuestion(existingQuestions[i].id, {
+              label: q.label,
+              type: q.type,
+              options: q.options ? JSON.stringify(q.options) : null,
+              isRequired: q.isRequired !== false,
+              priority: i,
+            });
+          } else {
+            await storage.createApplicationQuestion({
+              formId: form.id,
+              label: q.label,
+              type: q.type,
+              options: q.options ? JSON.stringify(q.options) : null,
+              isRequired: q.isRequired !== false,
+              priority: i,
+            });
+          }
+        }
+        
+        for (let i = questions.length; i < existingQuestions.length; i++) {
+          await storage.deleteApplicationQuestion(existingQuestions[i].id);
         }
       }
 
@@ -1583,20 +1598,38 @@ export async function registerRoutes(
       }
       const formId = req.params.id as string;
       const { questions } = req.body;
-      await storage.deleteSupportQuestionsByForm(formId);
-      const created = [];
-      for (const q of questions) {
-        const question = await storage.createSupportQuestion({
-          formId,
-          label: q.label,
-          type: q.type,
-          options: q.options || null,
-          isRequired: q.isRequired ?? true,
-          priority: q.priority ?? 0,
-        });
-        created.push(question);
+      const existingQuestions = await storage.getSupportQuestionsByForm(formId);
+      const result = [];
+      
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (i < existingQuestions.length) {
+          const updated = await storage.updateSupportQuestion(existingQuestions[i].id, {
+            label: q.label,
+            type: q.type,
+            options: q.options || null,
+            isRequired: q.isRequired ?? true,
+            priority: q.priority ?? i,
+          });
+          if (updated) result.push(updated);
+        } else {
+          const question = await storage.createSupportQuestion({
+            formId,
+            label: q.label,
+            type: q.type,
+            options: q.options || null,
+            isRequired: q.isRequired ?? true,
+            priority: q.priority ?? i,
+          });
+          result.push(question);
+        }
       }
-      res.json({ questions: created });
+      
+      for (let i = questions.length; i < existingQuestions.length; i++) {
+        await storage.deleteSupportQuestion(existingQuestions[i].id);
+      }
+      
+      res.json({ questions: result });
     } catch (error) {
       res.status(500).json({ error: "Failed to update questions" });
     }

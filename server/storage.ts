@@ -152,6 +152,8 @@ export interface IStorage {
   // Support Questions
   getSupportQuestionsByForm(formId: string): Promise<SupportQuestion[]>;
   createSupportQuestion(question: InsertSupportQuestion): Promise<SupportQuestion>;
+  updateSupportQuestion(id: string, updates: Partial<InsertSupportQuestion>): Promise<SupportQuestion | undefined>;
+  deleteSupportQuestion(id: string): Promise<void>;
   deleteSupportQuestionsByForm(formId: string): Promise<void>;
 
   // Support Submissions
@@ -654,6 +656,15 @@ export class DatabaseStorage implements IStorage {
   async createSupportQuestion(question: InsertSupportQuestion): Promise<SupportQuestion> {
     const [created] = await db.insert(supportQuestions).values(question).returning();
     return created;
+  }
+
+  async updateSupportQuestion(id: string, updates: Partial<InsertSupportQuestion>): Promise<SupportQuestion | undefined> {
+    const [updated] = await db.update(supportQuestions).set(updates).where(eq(supportQuestions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSupportQuestion(id: string): Promise<void> {
+    await db.delete(supportQuestions).where(eq(supportQuestions.id, id));
   }
 
   async deleteSupportQuestionsByForm(formId: string): Promise<void> {
