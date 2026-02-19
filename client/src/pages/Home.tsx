@@ -274,30 +274,7 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-24 space-y-24">
-        {user ? (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-12"
-          >
-            <h2 className="text-3xl font-bold mb-4 font-display">Welcome back, {user.username}!</h2>
-            <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
-              You're connected to the Tamaki Makaurau RP community. Explore departments, meet the team, or learn how to join.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/departments">
-                <Button size="lg" className="gap-2">
-                  <Shield className="w-4 h-4" /> Explore Departments
-                </Button>
-              </Link>
-              <Link href="/team">
-                <Button size="lg" variant="outline" className="gap-2">
-                  <Users className="w-4 h-4" /> Meet the Team
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        ) : (
+        {user ? null : (
           <div className="grid md:grid-cols-3 gap-12 items-center">
             <div className="md:col-span-2">
               <h2 className="text-4xl font-bold mb-8 font-display italic tracking-tight" data-testid="text-why-join">WHY JOIN TAMAKI MAKAURAU?</h2>
