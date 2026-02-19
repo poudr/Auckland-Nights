@@ -1821,5 +1821,95 @@ export async function registerRoutes(
     }
   });
 
+  // ============ SUPPORT FAQ ROUTES ============
+  app.get("/api/support/faqs", async (_req, res) => {
+    try {
+      const faqs = await storage.getSupportFaqs();
+      res.json({ faqs });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch FAQs" });
+    }
+  });
+
+  app.post("/api/support/faqs", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const { question, answer, category } = req.body;
+      if (!question || !answer) {
+        return res.status(400).json({ error: "Question and answer are required" });
+      }
+      const faq = await storage.createSupportFaq({ question, answer, category: category || "General", createdBy: req.user!.id });
+      res.json({ faq });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create FAQ" });
+    }
+  });
+
+  app.patch("/api/support/faqs/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const { question, answer, category, priority } = req.body;
+      const updates: any = {};
+      if (question !== undefined) updates.question = question;
+      if (answer !== undefined) updates.answer = answer;
+      if (category !== undefined) updates.category = category;
+      if (priority !== undefined) updates.priority = priority;
+      const faq = await storage.updateSupportFaq(req.params.id as string, updates);
+      res.json({ faq });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update FAQ" });
+    }
+  });
+
+  app.delete("/api/support/faqs/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      await storage.deleteSupportFaq(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete FAQ" });
+    }
+  });
+
+  // ============ SUPPORT FORM MANAGEMENT (Create/Delete) ============
+  app.post("/api/support/forms", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const { title, description, key, accessTiers } = req.body;
+      if (!title || !key) {
+        return res.status(400).json({ error: "Title and key are required" });
+      }
+      const form = await storage.createSupportForm({ title, description, key, isOpen: true, accessTiers: accessTiers || ["executive", "director"] });
+      res.json({ form });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create form" });
+    }
+  });
+
+  app.delete("/api/support/forms/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      await storage.deleteSupportForm(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete form" });
+    }
+  });
+
   return httpServer;
 }

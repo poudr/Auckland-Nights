@@ -416,6 +416,26 @@ export const insertSupportMessageSchema = createInsertSchema(supportMessages).om
 export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
 export type SupportMessage = typeof supportMessages.$inferSelect;
 
+// ============ SUPPORT FAQS ============
+export const supportFaqs = pgTable("support_faqs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  category: text("category").default("General"),
+  priority: integer("priority").default(0),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupportFaqSchema = createInsertSchema(supportFaqs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSupportFaq = z.infer<typeof insertSupportFaqSchema>;
+export type SupportFaq = typeof supportFaqs.$inferSelect;
+
 // ============ STAFF HIERARCHY (for Meet the Team) ============
 export const STAFF_HIERARCHY = [
   "director",

@@ -20,8 +20,9 @@ import {
   type SupportQuestion, type InsertSupportQuestion,
   type SupportSubmission, type InsertSupportSubmission,
   type SupportMessage, type InsertSupportMessage,
+  type SupportFaq, type InsertSupportFaq,
   users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads,
-  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages
+  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc } from "drizzle-orm";
@@ -146,6 +147,7 @@ export interface IStorage {
   getSupportFormByKey(key: string): Promise<SupportForm | undefined>;
   createSupportForm(form: InsertSupportForm): Promise<SupportForm>;
   updateSupportForm(id: string, updates: Partial<InsertSupportForm>): Promise<SupportForm | undefined>;
+  deleteSupportForm(id: string): Promise<void>;
 
   // Support Questions
   getSupportQuestionsByForm(formId: string): Promise<SupportQuestion[]>;
@@ -163,6 +165,13 @@ export interface IStorage {
   // Support Messages
   getSupportMessagesBySubmission(submissionId: string): Promise<SupportMessage[]>;
   createSupportMessage(message: InsertSupportMessage): Promise<SupportMessage>;
+
+  // Support FAQs
+  getSupportFaqs(): Promise<SupportFaq[]>;
+  getSupportFaq(id: string): Promise<SupportFaq | undefined>;
+  createSupportFaq(faq: InsertSupportFaq): Promise<SupportFaq>;
+  updateSupportFaq(id: string, updates: Partial<InsertSupportFaq>): Promise<SupportFaq | undefined>;
+  deleteSupportFaq(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -627,6 +636,16 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async deleteSupportForm(id: string): Promise<void> {
+    await db.delete(supportQuestions).where(eq(supportQuestions.formId, id));
+    const submissions = await db.select().from(supportSubmissions).where(eq(supportSubmissions.formId, id));
+    for (const sub of submissions) {
+      await db.delete(supportMessages).where(eq(supportMessages.submissionId, sub.id));
+    }
+    await db.delete(supportSubmissions).where(eq(supportSubmissions.formId, id));
+    await db.delete(supportForms).where(eq(supportForms.id, id));
+  }
+
   // ============ SUPPORT QUESTIONS ============
   async getSupportQuestionsByForm(formId: string): Promise<SupportQuestion[]> {
     return await db.select().from(supportQuestions).where(eq(supportQuestions.formId, formId)).orderBy(asc(supportQuestions.priority));
@@ -678,6 +697,30 @@ export class DatabaseStorage implements IStorage {
   async createSupportMessage(message: InsertSupportMessage): Promise<SupportMessage> {
     const [created] = await db.insert(supportMessages).values(message).returning();
     return created;
+  }
+
+  // ============ SUPPORT FAQS ============
+  async getSupportFaqs(): Promise<SupportFaq[]> {
+    return await db.select().from(supportFaqs).orderBy(asc(supportFaqs.priority), desc(supportFaqs.createdAt));
+  }
+
+  async getSupportFaq(id: string): Promise<SupportFaq | undefined> {
+    const [faq] = await db.select().from(supportFaqs).where(eq(supportFaqs.id, id));
+    return faq;
+  }
+
+  async createSupportFaq(faq: InsertSupportFaq): Promise<SupportFaq> {
+    const [created] = await db.insert(supportFaqs).values(faq).returning();
+    return created;
+  }
+
+  async updateSupportFaq(id: string, updates: Partial<InsertSupportFaq>): Promise<SupportFaq | undefined> {
+    const [updated] = await db.update(supportFaqs).set({ ...updates, updatedAt: new Date() }).where(eq(supportFaqs.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSupportFaq(id: string): Promise<void> {
+    await db.delete(supportFaqs).where(eq(supportFaqs.id, id));
   }
 }
 

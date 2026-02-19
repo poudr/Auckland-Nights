@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { ClipboardList, ChevronLeft, Send, Settings, Lock, Unlock, Check, X, Trash2, Plus, ArrowLeft, FileText, Users, Shield, GripVertical } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ClipboardList, ChevronLeft, ChevronDown, ChevronUp, Send, Settings, Lock, Unlock, Check, X, Trash2, Plus, ArrowLeft, FileText, Users, Shield, MessageSquare, HelpCircle, ExternalLink, Edit, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +59,16 @@ interface SupportMessage {
   discordId?: string | null;
 }
 
+interface SupportFaq {
+  id: string;
+  question: string;
+  answer: string;
+  category: string | null;
+  priority: number | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
 const TIER_LABELS: Record<string, string> = {
   director: "Director",
   executive: "Executive",
@@ -70,6 +80,8 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const EDITABLE_TIERS = ["director", "executive", "manager", "administrator", "moderator", "support", "development"];
+
+type SupportTab = "faq" | "applications" | "discord" | "contact";
 
 function SubmissionThread({ submissionId, user, hasStaffAccess, onBack }: { submissionId: string; user: any; hasStaffAccess: boolean; onBack: () => void }) {
   const { toast } = useToast();
@@ -388,7 +400,7 @@ function FormSettings({ form, onClose }: { form: SupportForm; onClose: () => voi
                 <Input
                   value={q.options}
                   onChange={(e) => updateQuestion(i, "options", e.target.value)}
-                  placeholder="Options (JSON array: [&quot;A&quot;, &quot;B&quot;, &quot;C&quot;])"
+                  placeholder='Options (JSON array: ["A", "B", "C"])'
                   data-testid={`input-question-options-${i}`}
                 />
               )}
@@ -586,7 +598,7 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
   return (
     <div>
       <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground mb-4" data-testid="button-back-forms">
-        <ArrowLeft className="w-4 h-4" /> Back to Support
+        <ArrowLeft className="w-4 h-4" /> Back to Applications
       </Button>
 
       <div className="flex items-start justify-between mb-6">
@@ -702,9 +714,231 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
   );
 }
 
-export default function Support() {
-  const { data: user, isLoading: userLoading } = useUser();
+function FaqSection({ user }: { user: any }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isAdmin = user?.staffTier === "director" || user?.staffTier === "executive";
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingFaq, setEditingFaq] = useState<SupportFaq | null>(null);
+  const [faqForm, setFaqForm] = useState({ question: "", answer: "", category: "General" });
+
+  const { data: faqData, isLoading } = useQuery({
+    queryKey: ["support-faqs"],
+    queryFn: async () => {
+      const res = await fetch("/api/support/faqs");
+      if (!res.ok) return { faqs: [] };
+      return res.json() as Promise<{ faqs: SupportFaq[] }>;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/support/faqs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(faqForm),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-faqs"] });
+      setShowAddDialog(false);
+      setFaqForm({ question: "", answer: "", category: "General" });
+      toast({ title: "FAQ added" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingFaq) return;
+      const res = await fetch(`/api/support/faqs/${editingFaq.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(faqForm),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-faqs"] });
+      setEditingFaq(null);
+      setFaqForm({ question: "", answer: "", category: "General" });
+      toast({ title: "FAQ updated" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/support/faqs/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-faqs"] });
+      toast({ title: "FAQ deleted" });
+    },
+  });
+
+  const faqs = faqData?.faqs || [];
+  const categories = [...new Set(faqs.map(f => f.category || "General"))];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold font-display" data-testid="text-faq-heading">Frequently Asked Questions</h2>
+          <p className="text-sm text-muted-foreground mt-1">Find answers to common questions about our server</p>
+        </div>
+        {isAdmin && (
+          <Button size="sm" onClick={() => { setFaqForm({ question: "", answer: "", category: "General" }); setShowAddDialog(true); }} className="gap-1 bg-orange-500 hover:bg-orange-600 text-black" data-testid="button-add-faq">
+            <Plus className="w-3 h-3" /> Add FAQ
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-16" />)}
+        </div>
+      ) : faqs.length === 0 ? (
+        <Card className="bg-zinc-900/30 border-white/5">
+          <CardContent className="py-12 text-center">
+            <HelpCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+            <p className="text-muted-foreground text-sm">No FAQs have been added yet.</p>
+            {isAdmin && <p className="text-muted-foreground text-xs mt-1">Click "Add FAQ" to create one.</p>}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {categories.map(category => {
+            const categoryFaqs = faqs.filter(f => (f.category || "General") === category);
+            return (
+              <div key={category}>
+                {categories.length > 1 && (
+                  <h3 className="text-sm font-semibold text-primary/80 uppercase tracking-wider mb-3">{category}</h3>
+                )}
+                <div className="space-y-2">
+                  {categoryFaqs.map(faq => (
+                    <Card
+                      key={faq.id}
+                      className={`bg-zinc-900/40 border-white/5 transition-all ${expandedId === faq.id ? "border-primary/20" : "hover:border-white/10"}`}
+                      data-testid={`faq-item-${faq.id}`}
+                    >
+                      <CardContent className="p-0">
+                        <button
+                          className="w-full flex items-center justify-between px-5 py-4 text-left"
+                          onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
+                          data-testid={`faq-toggle-${faq.id}`}
+                        >
+                          <span className="font-medium text-sm pr-4">{faq.question}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isAdmin && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingFaq(faq);
+                                    setFaqForm({ question: faq.question, answer: faq.answer, category: faq.category || "General" });
+                                  }}
+                                  data-testid={`button-edit-faq-${faq.id}`}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-400 hover:text-red-300"
+                                  onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(faq.id); }}
+                                  data-testid={`button-delete-faq-${faq.id}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </>
+                            )}
+                            {expandedId === faq.id ? (
+                              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        </button>
+                        <AnimatePresence>
+                          {expandedId === faq.id && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-5 pb-4 border-t border-white/5 pt-3">
+                                <p className="text-sm text-muted-foreground whitespace-pre-line">{faq.answer}</p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={showAddDialog || !!editingFaq} onOpenChange={(open) => { if (!open) { setShowAddDialog(false); setEditingFaq(null); } }}>
+        <DialogContent className="bg-zinc-900 border-white/10">
+          <DialogHeader>
+            <DialogTitle>{editingFaq ? "Edit FAQ" : "Add New FAQ"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Category</Label>
+              <Input value={faqForm.category} onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })} placeholder="e.g. General, Gameplay, Rules" data-testid="input-faq-category" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Question</Label>
+              <Input value={faqForm.question} onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })} placeholder="What is the question?" data-testid="input-faq-question" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Answer</Label>
+              <textarea
+                className="w-full bg-zinc-800 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[120px]"
+                value={faqForm.answer}
+                onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })}
+                placeholder="Write the answer..."
+                data-testid="textarea-faq-answer"
+              />
+            </div>
+            <Button
+              onClick={() => editingFaq ? updateMutation.mutate() : createMutation.mutate()}
+              disabled={!faqForm.question.trim() || !faqForm.answer.trim() || createMutation.isPending || updateMutation.isPending}
+              className="w-full"
+              data-testid="button-save-faq"
+            >
+              {editingFaq ? "Save Changes" : "Add FAQ"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ApplicationsSection({ user }: { user: any }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isAdmin = user?.staffTier === "director" || user?.staffTier === "executive";
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newForm, setNewForm] = useState({ title: "", description: "", key: "" });
 
   const searchParams = new URLSearchParams(window.location.search);
   const deepLinkFormId = searchParams.get("form");
@@ -724,68 +958,388 @@ export default function Support() {
     },
   });
 
+  const createFormMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/support/forms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(newForm),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-forms"] });
+      setShowCreateDialog(false);
+      setNewForm({ title: "", description: "", key: "" });
+      toast({ title: "Form created" });
+    },
+  });
+
+  const deleteFormMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/support/forms/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-forms"] });
+      toast({ title: "Form deleted" });
+    },
+  });
+
   const forms = formsData?.forms || [];
   const selectedForm = forms.find(f => f.id === selectedFormId);
+
+  if (selectedForm) {
+    return <FormDetail form={selectedForm} user={user} onBack={() => setSelectedFormId(null)} />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold font-display" data-testid="text-applications-heading">Applications</h2>
+          <p className="text-sm text-muted-foreground mt-1">Browse and submit applications for roles and appeals</p>
+        </div>
+        {isAdmin && (
+          <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1 bg-orange-500 hover:bg-orange-600 text-black" data-testid="button-create-form">
+            <Plus className="w-3 h-3" /> New Form
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
+        </div>
+      ) : forms.length === 0 ? (
+        <Card className="bg-zinc-900/30 border-white/5">
+          <CardContent className="py-12 text-center">
+            <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+            <p className="text-muted-foreground text-sm">No application forms available.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {forms.map((form, idx) => (
+            <motion.div
+              key={form.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.05 }}
+            >
+              <Card
+                className={`bg-zinc-900/40 border-white/5 cursor-pointer hover:bg-zinc-800/50 transition-all hover:border-primary/20 group relative ${!form.isOpen ? "opacity-60" : ""}`}
+                onClick={() => setSelectedFormId(form.id)}
+                data-testid={`form-card-${form.key}`}
+              >
+                <CardContent className="flex items-center gap-4 py-5 px-5">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm">{form.title}</h3>
+                      {!form.isOpen && (
+                        <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">Closed</Badge>
+                      )}
+                    </div>
+                    {form.description && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{form.description}</p>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      onClick={(e) => { e.stopPropagation(); deleteFormMutation.mutate(form.id); }}
+                      data-testid={`button-delete-form-${form.id}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="bg-zinc-900 border-white/10">
+          <DialogHeader>
+            <DialogTitle>Create New Application Form</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Title</Label>
+              <Input value={newForm.title} onChange={(e) => setNewForm({ ...newForm, title: e.target.value })} placeholder="e.g. Mechanic Applications" data-testid="input-form-title" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Key (unique identifier)</Label>
+              <Input value={newForm.key} onChange={(e) => setNewForm({ ...newForm, key: e.target.value.toLowerCase().replace(/\s+/g, "_") })} placeholder="e.g. mechanic_apps" data-testid="input-form-key" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Description</Label>
+              <textarea
+                className="w-full bg-zinc-800 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[80px]"
+                value={newForm.description}
+                onChange={(e) => setNewForm({ ...newForm, description: e.target.value })}
+                placeholder="Brief description of this form..."
+                data-testid="textarea-form-description"
+              />
+            </div>
+            <Button
+              onClick={() => createFormMutation.mutate()}
+              disabled={!newForm.title.trim() || !newForm.key.trim() || createFormMutation.isPending}
+              className="w-full"
+              data-testid="button-submit-new-form"
+            >
+              Create Form
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function DiscordSection() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold font-display" data-testid="text-discord-heading">Join Our Discord</h2>
+        <p className="text-sm text-muted-foreground mt-1">Connect with the community and stay up to date</p>
+      </div>
+
+      <Card className="bg-gradient-to-br from-[#5865F2]/10 to-[#5865F2]/5 border-[#5865F2]/20 overflow-hidden">
+        <CardContent className="py-10 px-8">
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            <div className="w-20 h-20 rounded-2xl bg-[#5865F2] flex items-center justify-center shrink-0">
+              <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
+              </svg>
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <h3 className="text-2xl font-bold mb-2 font-display">Tamaki Makaurau RP</h3>
+              <p className="text-muted-foreground mb-4 max-w-md">
+                Join our Discord server to connect with other players, get the latest updates, participate in events, and be part of the community. This is where everything happens!
+              </p>
+              <div className="flex flex-wrap gap-6 justify-center md:justify-start text-sm text-muted-foreground mb-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                  <span>Active Community</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>24/7 Support</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span>Growing Server</span>
+                </div>
+              </div>
+              <a
+                href="https://discord.gg/tamakimakauraurp"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="link-join-discord"
+              >
+                <Button size="lg" className="gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white">
+                  <ExternalLink className="w-4 h-4" /> Join Discord Server
+                </Button>
+              </a>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="py-5 px-5">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+              <MessageSquare className="w-5 h-5 text-primary" />
+            </div>
+            <h4 className="font-semibold text-sm mb-1">Chat & Socialise</h4>
+            <p className="text-xs text-muted-foreground">Meet other players, share stories, and make friends in the community.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="py-5 px-5">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+              <Shield className="w-5 h-5 text-primary" />
+            </div>
+            <h4 className="font-semibold text-sm mb-1">Stay Updated</h4>
+            <p className="text-xs text-muted-foreground">Get announcements, changelogs, and important server updates directly.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="py-5 px-5">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+              <Users className="w-5 h-5 text-primary" />
+            </div>
+            <h4 className="font-semibold text-sm mb-1">Events & Roleplay</h4>
+            <p className="text-xs text-muted-foreground">Participate in community events, roleplay sessions, and competitions.</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ContactSection() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold font-display" data-testid="text-contact-heading">Contact Us</h2>
+        <p className="text-sm text-muted-foreground mt-1">Need help? Reach out through our support channels</p>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="bg-zinc-900/40 border-white/5 hover:border-primary/20 transition-all">
+          <CardContent className="py-8 px-6 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-[#5865F2]/10 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-[#5865F2]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold mb-2">Discord Tickets</h3>
+            <p className="text-sm text-muted-foreground mb-5">
+              Open a support ticket in our Discord server for direct assistance from our staff team. This is the fastest way to get help.
+            </p>
+            <a href="https://discord.gg/tamakimakauraurp" target="_blank" rel="noopener noreferrer" data-testid="link-discord-tickets">
+              <Button className="gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white">
+                <ExternalLink className="w-4 h-4" /> Open a Ticket
+              </Button>
+            </a>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-900/40 border-white/5 hover:border-primary/20 transition-all">
+          <CardContent className="py-8 px-6 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-7 h-7 text-primary" />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Submit an Application</h3>
+            <p className="text-sm text-muted-foreground mb-5">
+              Looking to join a department, apply for staff, or submit a ban appeal? Head over to the Applications tab to get started.
+            </p>
+            <Button variant="outline" className="gap-2" disabled>
+              <ClipboardList className="w-4 h-4" /> Use the Applications Tab
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardContent className="py-6 px-6">
+          <h3 className="font-semibold mb-3">Other Ways to Reach Us</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-zinc-800/30">
+              <HelpCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">FAQ</p>
+                <p className="text-xs text-muted-foreground">Check the FAQ tab for answers to common questions before reaching out.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-zinc-800/30">
+              <Shield className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">In-Game Support</p>
+                <p className="text-xs text-muted-foreground">Use /report in-game to contact staff members who are currently online.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+const TAB_CONFIG: { key: SupportTab; label: string; icon: React.ReactNode }[] = [
+  { key: "faq", label: "FAQ", icon: <HelpCircle className="w-4 h-4" /> },
+  { key: "applications", label: "Applications", icon: <FileText className="w-4 h-4" /> },
+  { key: "discord", label: "Join Discord", icon: <MessageSquare className="w-4 h-4" /> },
+  { key: "contact", label: "Contact Us", icon: <Send className="w-4 h-4" /> },
+];
+
+export default function Support() {
+  const { data: user, isLoading: userLoading } = useUser();
+  const [activeTab, setActiveTab] = useState<SupportTab>("faq");
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const deepLinkFormId = searchParams.get("form");
+
+  useEffect(() => {
+    if (deepLinkFormId) {
+      setActiveTab("applications");
+    }
+  }, [deepLinkFormId]);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="pt-24 px-6 pb-12">
-        <div className="max-w-4xl mx-auto">
-          {selectedForm ? (
-            <FormDetail form={selectedForm} user={user} onBack={() => setSelectedFormId(null)} />
-          ) : (
-            <>
-              <motion.header
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-8"
-              >
-                <h1 className="text-3xl font-black text-primary mb-2" data-testid="text-support-title">Support</h1>
-                <p className="text-muted-foreground">Browse available applications and submit your requests below.</p>
-              </motion.header>
 
-              {isLoading ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {forms.map(form => (
-                    <motion.div
-                      key={form.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: forms.indexOf(form) * 0.05 }}
-                    >
-                      <Card
-                        className={`bg-zinc-900/40 border-white/5 cursor-pointer hover:bg-zinc-800/50 transition-all hover:border-primary/20 ${!form.isOpen ? "opacity-60" : ""}`}
-                        onClick={() => setSelectedFormId(form.id)}
-                        data-testid={`form-card-${form.key}`}
-                      >
-                        <CardContent className="flex items-center gap-4 py-5 px-5">
-                          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                            <FileText className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-sm">{form.title}</h3>
-                              {!form.isOpen && (
-                                <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">Closed</Badge>
-                              )}
-                            </div>
-                            {form.description && (
-                              <p className="text-xs text-muted-foreground mt-1 truncate">{form.description}</p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+        <div className="pt-28 pb-8 px-6 relative">
+          <div className="max-w-5xl mx-auto text-center">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-4xl md:text-5xl font-black font-display text-primary mb-3"
+              data-testid="text-support-title"
+            >
+              Support Centre
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-muted-foreground max-w-lg mx-auto"
+            >
+              Find answers, submit applications, and get in touch with our team
+            </motion.p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 pb-16">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex gap-1 p-1 bg-zinc-900/60 rounded-xl mb-8 overflow-x-auto" data-testid="support-tabs">
+            {TAB_CONFIG.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  activeTab === tab.key
+                    ? "bg-primary text-black shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                }`}
+                data-testid={`tab-${tab.key}`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeTab === "faq" && <FaqSection user={user} />}
+              {activeTab === "applications" && <ApplicationsSection user={user} />}
+              {activeTab === "discord" && <DiscordSection />}
+              {activeTab === "contact" && <ContactSection />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>
