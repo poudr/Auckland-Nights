@@ -13,6 +13,7 @@ declare global {
       id: string;
       discordId: string;
       username: string;
+      displayName: string | null;
       discriminator: string | null;
       avatar: string | null;
       email: string | null;
@@ -155,9 +156,12 @@ export function setupAuth(app: Express) {
             // Check if user exists
             let user = await storage.getUserByDiscordId(profile.id);
 
+            const displayName = (profile as any)._json?.global_name || profile.username;
+
             if (user) {
               user = await storage.updateUser(profile.id, {
                 username: profile.username,
+                displayName,
                 discriminator: profile.discriminator || null,
                 avatar: profile.avatar || null,
                 email: profile.email || null,
@@ -173,6 +177,7 @@ export function setupAuth(app: Express) {
               user = await storage.createUser({
                 discordId: profile.id,
                 username: profile.username,
+                displayName,
                 discriminator: profile.discriminator || null,
                 avatar: profile.avatar || null,
                 email: profile.email || null,

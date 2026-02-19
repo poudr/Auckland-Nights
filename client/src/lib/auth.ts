@@ -4,6 +4,7 @@ export interface User {
   id: string;
   discordId: string;
   username: string;
+  displayName: string | null;
   discriminator: string | null;
   avatar: string | null;
   email: string | null;
@@ -11,6 +12,7 @@ export interface User {
   websiteRoles: string[] | null;
   isStaff: boolean | null;
   staffTier: string | null;
+  staffTiers: string[] | null;
   createdAt: string | null;
   updatedAt: string | null;
 }

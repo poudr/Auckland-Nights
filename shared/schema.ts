@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   discordId: text("discord_id").notNull().unique(),
   username: text("username").notNull(),
+  displayName: text("display_name"),
   discriminator: text("discriminator"),
   avatar: text("avatar"),
   email: text("email"),

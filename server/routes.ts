@@ -161,6 +161,98 @@ export async function registerRoutes(
     }
   });
 
+  // ============ PROFILE ROUTES ============
+
+  app.get("/api/profile/:discordId", async (req, res) => {
+    try {
+      const discordId = req.params.discordId as string;
+      const profileUser = await storage.getUserByDiscordId(discordId);
+      if (!profileUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { accessToken: _, refreshToken: __, ...safeUser } = profileUser;
+
+      const allDepartments = await storage.getDepartments();
+      const memberships: Array<{
+        department: { code: string; name: string; color: string; icon: string | null };
+        rank: { name: string; abbreviation: string | null; isLeadership: boolean; priority: number } | null;
+        callsign: string | null;
+        qid: string | null;
+      }> = [];
+
+      for (const dept of allDepartments) {
+        const deptRanks = await storage.getRanksByDepartment(dept.code);
+        const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
+
+        let bestRank: typeof deptRanks[0] | null = null;
+        for (const rank of ranksWithDiscordRole) {
+          if (profileUser.roles && profileUser.roles.includes(rank.discordRoleId!)) {
+            if (!bestRank || rank.priority < bestRank.priority) {
+              bestRank = rank;
+            }
+          }
+        }
+
+        if (bestRank) {
+          const manualRoster = await storage.getRosterByDepartment(dept.code);
+          const manual = manualRoster.find(m => m.userId === profileUser.id);
+          memberships.push({
+            department: { code: dept.code, name: dept.name, color: dept.color, icon: dept.icon },
+            rank: { name: bestRank.name, abbreviation: bestRank.abbreviation, isLeadership: bestRank.isLeadership ?? false, priority: bestRank.priority },
+            callsign: manual?.callsign || null,
+            qid: manual?.qid || null,
+          });
+        }
+      }
+
+      let openApplications: any[] = [];
+      const viewer = req.user;
+      const isStaffViewer = viewer?.staffTier && ["director", "executive", "manager", "administrator"].includes(viewer.staffTier);
+
+      if (isStaffViewer) {
+        const allSubmissions = await storage.getSubmissionsByUser(profileUser.id);
+        const openSubs = allSubmissions.filter(s => s.status === "pending" || s.status === "under_review");
+
+        for (const sub of openSubs) {
+          const form = await storage.getApplicationForm(sub.formId);
+          const dept = form?.departmentCode ? await storage.getDepartment(form.departmentCode) : null;
+          openApplications.push({
+            id: sub.id,
+            status: sub.status,
+            formTitle: form?.title || "Unknown",
+            departmentName: dept?.name || null,
+            departmentCode: dept?.code || null,
+            createdAt: sub.createdAt,
+          });
+        }
+
+        const supportSubs = await storage.getSupportSubmissionsByUser(profileUser.id);
+        const openSupportSubs = supportSubs.filter(s => s.status === "pending" || s.status === "under_review");
+        for (const sub of openSupportSubs) {
+          const form = await storage.getSupportForm(sub.formId);
+          openApplications.push({
+            id: sub.id,
+            status: sub.status,
+            formTitle: form?.title || "Unknown",
+            departmentName: null,
+            departmentCode: null,
+            createdAt: sub.createdAt,
+          });
+        }
+      }
+
+      res.json({
+        user: safeUser,
+        memberships,
+        openApplications,
+      });
+    } catch (error) {
+      console.error("Profile fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
   // ============ STAFF/TEAM ROUTES ============
   app.get("/api/team", async (req, res) => {
     try {
@@ -241,8 +333,9 @@ export async function registerRoutes(
         callsignNumber: number | null;
         qid: string | null;
         isActive: boolean;
-        user: { id: string; username: string; avatar: string | null; discordId: string; createdAt: Date | null } | null;
+        user: { id: string; username: string; displayName: string | null; avatar: string | null; discordId: string; roles: string[] | null; createdAt: Date | null } | null;
         rank: typeof departmentRanks[0] | undefined;
+        squadId?: string | null;
       };
 
       const rosterMap = new Map<string, RosterEntry>();
@@ -265,8 +358,9 @@ export async function registerRoutes(
                 callsignNumber: existing.callsignNumber,
                 qid: existing.qid,
                 isActive: true,
-                user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId, createdAt: user.createdAt },
+                user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
                 rank,
+                squadId: existing.squadId,
               });
             }
           } else {
@@ -280,8 +374,9 @@ export async function registerRoutes(
               callsignNumber: manual?.callsignNumber || null,
               qid: manual?.qid || null,
               isActive: true,
-              user: { id: user.id, username: user.username, avatar: user.avatar, discordId: user.discordId, createdAt: user.createdAt },
+              user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
               rank,
+              squadId: manual?.squadId || null,
             });
           }
         }
@@ -322,7 +417,13 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ roster: autoRoster, ranks: departmentRanks });
+      let emsCsoRoleId: string | null = null;
+      if (code === "ems") {
+        const csoSetting = await storage.getAdminSetting("ems_cso_role_id");
+        emsCsoRoleId = csoSetting || null;
+      }
+
+      res.json({ roster: autoRoster, ranks: departmentRanks, emsCsoRoleId });
     } catch (error) {
       console.error("Roster fetch error:", error);
       res.status(500).json({ error: "Failed to fetch roster" });

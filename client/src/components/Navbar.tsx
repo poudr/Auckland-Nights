@@ -172,19 +172,19 @@ export default function Navbar() {
                     <AvatarImage src={getAvatarUrl(user)} alt={user.username} />
                     <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">{user.username}</span>
+                  <span className="hidden sm:inline">{user.displayName || user.username}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex items-center gap-3 p-2">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={getAvatarUrl(user)} alt={user.username} />
-                      <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarImage src={getAvatarUrl(user)} alt={user.displayName || user.username} />
+                      <AvatarFallback>{(user.displayName || user.username).slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-semibold">{user.username}</span>
-                      <span className="text-xs text-muted-foreground">{user.discordId}</span>
+                      <span className="font-semibold">{user.displayName || user.username}</span>
+                      <span className="text-xs text-muted-foreground">@{user.username}</span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
@@ -213,6 +213,12 @@ export default function Navbar() {
                     <DropdownMenuSeparator />
                   </>
                 )}
+                <Link href={`/profile/${user.discordId}`}>
+                  <DropdownMenuItem data-testid="link-my-profile">
+                    <User className="mr-2 h-4 w-4" />
+                    My Profile
+                  </DropdownMenuItem>
+                </Link>
                 <DropdownMenuItem onClick={() => syncRolesMutation.mutate()} disabled={syncRolesMutation.isPending}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${syncRolesMutation.isPending ? 'animate-spin' : ''}`} />
                   Sync Roles
