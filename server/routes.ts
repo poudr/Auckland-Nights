@@ -18,6 +18,27 @@ function generateNextQid(existingQids: Set<string>): string {
   return `ACP99Z`;
 }
 
+async function isUserDepartmentLeadership(user: any, departmentCode: string): Promise<boolean> {
+  const tier = user?.staffTier;
+  if (tier && ["director", "executive", "manager"].includes(tier)) return true;
+  
+  const rosterMember = await storage.getRosterMemberByUser(user.id, departmentCode);
+  if (rosterMember) {
+    const rank = await storage.getRank(rosterMember.rankId);
+    if (rank?.isLeadership) return true;
+  }
+  
+  if (user?.roles) {
+    const deptRanks = await storage.getRanksByDepartment(departmentCode);
+    const leadershipDiscordRoleIds = deptRanks
+      .filter((r: any) => r.isLeadership && r.discordRoleId)
+      .map((r: any) => r.discordRoleId!);
+    if (user.roles.some((role: string) => leadershipDiscordRoleIds.includes(role))) return true;
+  }
+  
+  return false;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -480,12 +501,11 @@ export async function registerRoutes(
   app.post("/api/departments/:code/forms", isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;
-      const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const code = req.params.code as string;
+      if (!(await isUserDepartmentLeadership(user, code))) {
         return res.status(403).json({ error: "Only leadership can create forms" });
       }
 
-      const code = req.params.code as string;
       const { title, description, questions, rolesOnAccept, isWhitelist, notifyRanks } = req.body;
 
       if (isWhitelist) {
@@ -533,15 +553,18 @@ export async function registerRoutes(
   app.put("/api/forms/:id", isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;
-      const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const existingFormCheck = await storage.getApplicationForm(req.params.id);
+      if (!existingFormCheck) {
+        return res.status(404).json({ error: "Form not found" });
+      }
+      if (!(await isUserDepartmentLeadership(user, existingFormCheck.departmentCode))) {
         return res.status(403).json({ error: "Only leadership can edit forms" });
       }
 
       const { title, description, questions, rolesOnAccept, isWhitelist, notifyRanks } = req.body;
 
       if (isWhitelist) {
-        const existingForm = await storage.getApplicationForm(req.params.id);
+        const existingForm = existingFormCheck;
         if (existingForm) {
           const existingForms = await storage.getApplicationFormsByDepartment(existingForm.departmentCode);
           for (const ef of existingForms) {
@@ -601,8 +624,11 @@ export async function registerRoutes(
   app.delete("/api/forms/:id", isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;
-      const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const formToDelete = await storage.getApplicationForm(req.params.id);
+      if (!formToDelete) {
+        return res.status(404).json({ error: "Form not found" });
+      }
+      if (!(await isUserDepartmentLeadership(user, formToDelete.departmentCode))) {
         return res.status(403).json({ error: "Only leadership can delete forms" });
       }
       await storage.deleteApplicationForm(req.params.id);
@@ -618,8 +644,7 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const code = req.params.code as string;
-      const tier = user.staffTier;
-      const isLeadership = tier && ["director", "executive", "manager"].includes(tier);
+      const isLeadership = await isUserDepartmentLeadership(user, code);
 
       if (isLeadership) {
         const submissions = await storage.getSubmissionsByDepartment(code);
@@ -663,8 +688,7 @@ export async function registerRoutes(
       const submission = await storage.getSubmission(req.params.id);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
-      const tier = user.staffTier;
-      const isLeadership = tier && ["director", "executive", "manager"].includes(tier);
+      const isLeadership = await isUserDepartmentLeadership(user, submission.departmentCode);
       if (submission.userId !== user.id && !isLeadership) {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -772,14 +796,13 @@ export async function registerRoutes(
   app.put("/api/submissions/:id/status", isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;
-      const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
-        return res.status(403).json({ error: "Only leadership can change status" });
-      }
-
       const { status, rolesToAssign } = req.body;
       const submission = await storage.updateSubmission(req.params.id, { status });
       if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      if (!(await isUserDepartmentLeadership(user, submission.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can change status" });
+      }
 
       const form = await storage.getApplicationForm(submission.formId);
       const dept = await storage.getDepartment(submission.departmentCode);
@@ -913,8 +936,7 @@ export async function registerRoutes(
       const submission = await storage.getSubmission(req.params.id);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
-      const tier = user.staffTier;
-      const isLeadership = tier && ["director", "executive", "manager"].includes(tier);
+      const isLeadership = await isUserDepartmentLeadership(user, submission.departmentCode);
       if (submission.userId !== user.id && !isLeadership) {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -973,13 +995,12 @@ export async function registerRoutes(
   app.delete("/api/submissions/:id", isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;
-      const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
-        return res.status(403).json({ error: "Only leadership can delete applications" });
-      }
-
       const submission = await storage.getSubmission(req.params.id);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+      if (!(await isUserDepartmentLeadership(user, submission.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can delete applications" });
+      }
 
       await storage.deleteSubmission(req.params.id);
       res.json({ success: true });
