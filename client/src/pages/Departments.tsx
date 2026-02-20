@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck, TrafficCone } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, type User } from "@/lib/auth";
 import { useLocation } from "wouter";
@@ -30,6 +30,7 @@ const ICONS: Record<string, React.ReactNode> = {
   HeartPulse: <HeartPulse className="w-8 h-8" />,
   Target: <Target className="w-8 h-8" />,
   Truck: <Truck className="w-8 h-8" />,
+  TrafficCone: <TrafficCone className="w-8 h-8" />,
 };
 
 async function fetchDepartments(): Promise<DepartmentsData> {
