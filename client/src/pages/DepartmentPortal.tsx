@@ -324,7 +324,7 @@ export default function DepartmentPortal() {
 
   const hasAosAccess = aosAccessData?.hasAccess || user?.staffTier === "director" || user?.staffTier === "executive" || false;
   
-  const hasLeadershipAccess = accessData?.isLeadership || user?.staffTier === "director" || user?.staffTier === "executive" || false;
+  const hasLeadershipAccess = accessData?.isLeadership || user?.staffTier === "director" || user?.staffTier === "executive" || user?.staffTier === "manager" || false;
   
   const { data: deptData, isLoading: deptLoading } = useQuery({
     queryKey: ["department", code],

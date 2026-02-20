@@ -1249,8 +1249,8 @@ export async function registerRoutes(
     
     console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
     
-    // Directors and Executives automatically get access to ALL department portals
-    if (staffTier === "director" || staffTier === "executive") {
+    // Directors, Executives, and Managers automatically get access to ALL department portals with leadership
+    if (staffTier === "director" || staffTier === "executive" || staffTier === "manager") {
       console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
