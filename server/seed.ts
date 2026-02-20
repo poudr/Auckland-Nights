@@ -73,6 +73,7 @@ export async function seedDatabase() {
     { discordRoleId: "1027902716665663488", discordRoleName: "Emergency Ambulance Service", websitePermission: "ems", staffTier: null, priority: 100 },
     { discordRoleId: "1410115394399633408", discordRoleName: "AOS", websitePermission: "aos", staffTier: null, priority: 100 },
     { discordRoleId: "1404050461581115453", discordRoleName: "Auckland Towing", websitePermission: "towing", staffTier: null, priority: 100 },
+    { discordRoleId: "1474307982694158397", discordRoleName: "Auckland Traffic Control", websitePermission: "traffic", staffTier: null, priority: 100 },
   ]);
 
   // Seed Staff Roles
