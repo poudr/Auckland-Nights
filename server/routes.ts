@@ -1249,8 +1249,8 @@ export async function registerRoutes(
     
     console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
     
-    // Directors, Executives, and Managers automatically get access to ALL department portals with leadership
-    if (staffTier === "director" || staffTier === "executive" || staffTier === "manager") {
+    // Directors and Executives automatically get access to ALL department portals with leadership
+    if (staffTier === "director" || staffTier === "executive") {
       console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
@@ -1274,6 +1274,18 @@ export async function registerRoutes(
     if (rosterMember) {
       const rank = await storage.getRank(rosterMember.rankId);
       isLeadership = rank?.isLeadership || false;
+    }
+    
+    // Also check if user's Discord roles match any leadership rank's discordRoleId
+    // (for auto-populated rosters where roster_members table may not have entries)
+    if (!isLeadership && req.user?.roles) {
+      const deptRanks = await storage.getRanksByDepartment(department);
+      const leadershipDiscordRoleIds = deptRanks
+        .filter(r => r.isLeadership && r.discordRoleId)
+        .map(r => r.discordRoleId!);
+      if (req.user.roles.some(role => leadershipDiscordRoleIds.includes(role))) {
+        isLeadership = true;
+      }
     }
     
     res.json({ hasAccess, department, isLeadership });
