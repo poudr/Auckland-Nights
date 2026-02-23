@@ -368,7 +368,7 @@ function SupportFormManagersDialog({ formId, formTitle, open, onOpenChange }: { 
   );
 }
 
-function FormSettings({ form, onClose }: { form: SupportForm; onClose: () => void }) {
+function FormSettings({ form, onClose, isFormManager, isAdmin }: { form: SupportForm; onClose: () => void; isFormManager?: boolean; isAdmin?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [accessTiers, setAccessTiers] = useState<string[]>(form.accessTiers || []);
@@ -465,29 +465,31 @@ function FormSettings({ form, onClose }: { form: SupportForm; onClose: () => voi
 
       <h2 className="text-xl font-bold">Settings: {form.title}</h2>
 
-      <Card className="bg-zinc-900/40 border-white/5">
-        <CardHeader>
-          <CardTitle className="text-base">Access Control</CardTitle>
-          <CardDescription>Choose which staff tiers can view and respond to submissions</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {EDITABLE_TIERS.map(tier => (
-            <div key={tier} className="flex items-center gap-2">
-              <Checkbox
-                checked={accessTiers.includes(tier)}
-                onCheckedChange={(checked) => {
-                  setAccessTiers(checked ? [...accessTiers, tier] : accessTiers.filter(t => t !== tier));
-                }}
-                data-testid={`checkbox-tier-${tier}`}
-              />
-              <span className="text-sm">{TIER_LABELS[tier]}</span>
-            </div>
-          ))}
-          <Button size="sm" onClick={() => updateAccessMutation.mutate()} disabled={updateAccessMutation.isPending} data-testid="button-save-access">
-            Save Access
-          </Button>
-        </CardContent>
-      </Card>
+      {isAdmin && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardHeader>
+            <CardTitle className="text-base">Access Control</CardTitle>
+            <CardDescription>Choose which staff tiers can view and respond to submissions</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {EDITABLE_TIERS.map(tier => (
+              <div key={tier} className="flex items-center gap-2">
+                <Checkbox
+                  checked={accessTiers.includes(tier)}
+                  onCheckedChange={(checked) => {
+                    setAccessTiers(checked ? [...accessTiers, tier] : accessTiers.filter(t => t !== tier));
+                  }}
+                  data-testid={`checkbox-tier-${tier}`}
+                />
+                <span className="text-sm">{TIER_LABELS[tier]}</span>
+              </div>
+            ))}
+            <Button size="sm" onClick={() => updateAccessMutation.mutate()} disabled={updateAccessMutation.isPending} data-testid="button-save-access">
+              Save Access
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-zinc-900/40 border-white/5">
         <CardHeader>
@@ -675,8 +677,8 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
   const submissions = submissionsData?.submissions || [];
   const mySubmissions = (mySubsData?.submissions || []).filter(s => s.formId === form.id);
 
-  if (view === "settings" && isAdmin) {
-    return <FormSettings form={form} onClose={() => setView("list")} />;
+  if (view === "settings" && (isAdmin || isFormManager)) {
+    return <FormSettings form={form} onClose={() => setView("list")} isFormManager={isFormManager} isAdmin={isAdmin} />;
   }
 
   if (view === "thread" && selectedSubmissionId) {
@@ -779,14 +781,14 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
             </Button>
           )}
           {isAdmin && (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setShowManagersDialog(true)} className="gap-1" data-testid="button-form-managers-detail">
-                <UserCog className="w-3 h-3" /> Managers
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setView("settings")} className="gap-1" data-testid="button-form-settings">
-                <Settings className="w-3 h-3" /> Settings
-              </Button>
-            </>
+            <Button size="sm" variant="outline" onClick={() => setShowManagersDialog(true)} className="gap-1" data-testid="button-form-managers-detail">
+              <UserCog className="w-3 h-3" /> Managers
+            </Button>
+          )}
+          {(isAdmin || isFormManager) && (
+            <Button size="sm" variant="outline" onClick={() => setView("settings")} className="gap-1" data-testid="button-form-settings">
+              <Settings className="w-3 h-3" /> Settings
+            </Button>
           )}
         </div>
       </div>

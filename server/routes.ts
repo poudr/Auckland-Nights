@@ -1960,6 +1960,7 @@ export async function registerRoutes(
 
       const isTopTier = tier === "director" || tier === "executive";
       const hasFormAccess = tier && (existingForm.accessTiers || []).includes(tier);
+      const isManager = await storage.isFormManager(req.params.id as string, req.user!.id);
 
       const { title, description, isOpen, accessTiers } = req.body;
 
@@ -1967,7 +1968,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Executive or Director required" });
       }
 
-      if (isOpen !== undefined && !isTopTier && !hasFormAccess) {
+      if (isOpen !== undefined && !isTopTier && !hasFormAccess && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -1995,8 +1996,10 @@ export async function registerRoutes(
   app.put("/api/support/forms/:id/questions", isAuthenticated, async (req, res) => {
     try {
       const tier = req.user?.staffTier;
-      if (!tier || !["executive", "director"].includes(tier)) {
-        return res.status(403).json({ error: "Executive or Director required" });
+      const isTopTier = tier === "director" || tier === "executive";
+      const isManager = await storage.isFormManager(req.params.id as string, req.user!.id);
+      if (!isTopTier && !isManager) {
+        return res.status(403).json({ error: "Executive, Director, or Form Manager required" });
       }
       const formId = req.params.id as string;
       const { questions } = req.body;
@@ -2042,8 +2045,10 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
-        return res.status(403).json({ error: "Only directors, executives, or managers can reorder questions" });
+      const isTopTier = tier === "director" || tier === "executive" || tier === "manager";
+      const isManager = await storage.isFormManager(req.params.formId as string, user.id);
+      if (!isTopTier && !isManager) {
+        return res.status(403).json({ error: "Only directors, executives, managers, or form managers can reorder questions" });
       }
 
       const formId = req.params.formId;
