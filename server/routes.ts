@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, hasPermission } from "./auth";
+import { setupAuth, isAuthenticated, hasPermission, meetsStaffTier } from "./auth";
 import { seedDatabase } from "./seed";
 import { STAFF_HIERARCHY } from "@shared/schema";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
@@ -1111,7 +1111,50 @@ export async function registerRoutes(
   });
 
   // ============ ADMIN ROUTES ============
-  app.get("/api/admin/users", isAuthenticated, hasPermission("admin"), async (req, res) => {
+
+  const ADMIN_TAB_SETTINGS: Record<string, { settingKey: string; defaultTier: string }> = {
+    dashboard: { settingKey: "staff_access_admin_panel", defaultTier: "director" },
+    users: { settingKey: "staff_manage_users", defaultTier: "director" },
+    players: { settingKey: "staff_manage_players", defaultTier: "executive" },
+    roles: { settingKey: "staff_manage_roles", defaultTier: "director" },
+    access: { settingKey: "staff_manage_access_control", defaultTier: "director" },
+    seo: { settingKey: "staff_manage_seo", defaultTier: "executive" },
+    audit: { settingKey: "staff_view_audit_log", defaultTier: "executive" },
+    settings: { settingKey: "staff_manage_settings", defaultTier: "director" },
+  };
+
+  async function checkStaffPermission(userTier: string | null | undefined, settingKey: string, defaultTier: string): Promise<boolean> {
+    if (userTier === "director") return true;
+    const setting = await storage.getAdminSetting(settingKey);
+    const requiredTier = setting?.value || defaultTier;
+    return meetsStaffTier(userTier, requiredTier);
+  }
+
+  function requireStaffPermission(settingKey: string, defaultTier: string) {
+    return async (req: any, res: any, next: any) => {
+      const userTier = req.user?.staffTier;
+      const allowed = await checkStaffPermission(userTier, settingKey, defaultTier);
+      if (!allowed) {
+        return res.status(403).json({ error: "Forbidden: Insufficient permissions for this action" });
+      }
+      next();
+    };
+  }
+
+  app.get("/api/admin/accessible-tabs", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    try {
+      const userTier = req.user?.staffTier;
+      const tabs: Record<string, boolean> = {};
+      for (const [tab, config] of Object.entries(ADMIN_TAB_SETTINGS)) {
+        tabs[tab] = await checkStaffPermission(userTier, config.settingKey, config.defaultTier);
+      }
+      res.json({ tabs });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check permissions" });
+    }
+  });
+
+  app.get("/api/admin/users", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_users", "director"), async (req, res) => {
     try {
       const users = await storage.getAllUsers();
       const safeUsers = users.map(({ accessToken, refreshToken, ...u }) => u);
@@ -1121,7 +1164,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/role-mappings", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/role-mappings", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const mappings = await storage.getRoleMappings();
       res.json({ mappings });
@@ -1130,7 +1173,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/role-mappings", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.post("/api/admin/role-mappings", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const mapping = await storage.createRoleMapping(req.body);
       await logAuditEvent(req.user!.id, "Created role mapping", "roles", `Discord: ${req.body.discordRoleId}`, mapping.id, "role_mapping");
@@ -1140,7 +1183,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/role-mappings/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.delete("/api/admin/role-mappings/:id", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const id = req.params.id as string;
       await storage.deleteRoleMapping(id);
@@ -1166,6 +1209,20 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/settings", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    const settingKey = req.body.key as string;
+    const isAccessControlSetting = settingKey?.startsWith("staff_") || settingKey?.startsWith("access_");
+    const isSeoSetting = settingKey?.startsWith("seo_");
+
+    if (isAccessControlSetting) {
+      const allowed = await checkStaffPermission(req.user?.staffTier, "staff_manage_access_control", "director");
+      if (!allowed) return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+    } else if (isSeoSetting) {
+      const allowed = await checkStaffPermission(req.user?.staffTier, "staff_manage_seo", "executive");
+      if (!allowed) return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+    } else {
+      const allowed = await checkStaffPermission(req.user?.staffTier, "staff_manage_settings", "director");
+      if (!allowed) return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+    }
     try {
       const setting = await storage.upsertAdminSetting({
         ...req.body,
@@ -1178,7 +1235,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/menu-items", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/menu-items", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_settings", "director"), async (req, res) => {
     try {
       const items = await storage.getMenuItems();
       res.json({ items });
@@ -1187,7 +1244,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/admin/menu-items/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.put("/api/admin/menu-items/:id", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_settings", "director"), async (req, res) => {
     try {
       const id = req.params.id as string;
       const item = await storage.updateMenuItem(id, req.body);
@@ -1198,7 +1255,7 @@ export async function registerRoutes(
   });
 
   // Sync all users from Discord
-  app.post("/api/admin/sync-all-roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.post("/api/admin/sync-all-roles", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_sync_roles", "director"), async (req, res) => {
     try {
       const users = await storage.getAllUsers();
       const guildId = process.env.DISCORD_GUILD_ID;
@@ -1285,7 +1342,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/audit-logs", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/audit-logs", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_view_audit_log", "executive"), async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
     const offset = parseInt(req.query.offset as string) || 0;
     const [logs, total] = await Promise.all([
@@ -1301,7 +1358,7 @@ export async function registerRoutes(
     res.json({ logs, total, users: usersMap });
   });
 
-  app.get("/api/admin/dashboard-stats", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/dashboard-stats", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_access_admin_panel", "director"), async (req, res) => {
     const [users, departments, recentLogs] = await Promise.all([
       storage.getAllUsers(),
       storage.getDepartments(),
@@ -1408,7 +1465,7 @@ export async function registerRoutes(
   });
 
   // ============ WEBSITE ROLES ROUTES ============
-  app.get("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const roles = await storage.getWebsiteRoles();
       res.json({ roles });
@@ -1417,7 +1474,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.post("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const role = await storage.createWebsiteRole(req.body);
       await logAuditEvent(req.user!.id, "Created website role", "roles", `Role: ${req.body.name}`, role.id, "website_role");
@@ -1427,7 +1484,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.put("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const role = await storage.updateWebsiteRole(req.params.id as string, req.body);
       await logAuditEvent(req.user!.id, "Updated website role", "roles", `Role: ${req.body.name || req.params.id}`, req.params.id as string, "website_role");
@@ -1437,7 +1494,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.delete("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       await storage.deleteWebsiteRole(req.params.id as string);
       await logAuditEvent(req.user!.id, "Deleted website role", "roles", undefined, req.params.id as string, "website_role");
@@ -1448,7 +1505,7 @@ export async function registerRoutes(
   });
 
   // ============ USER ROLE ASSIGNMENT ROUTES ============
-  app.get("/api/admin/users/:userId/roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/users/:userId/roles", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_users", "director"), async (req, res) => {
     try {
       const assignments = await storage.getUserRoleAssignments(req.params.userId as string);
       const roles = await storage.getWebsiteRoles();
@@ -1459,7 +1516,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/users/:userId/roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.post("/api/admin/users/:userId/roles", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_users", "director"), async (req, res) => {
     try {
       const assignment = await storage.assignRoleToUser({
         userId: req.params.userId as string,
@@ -1472,7 +1529,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/users/:userId/roles/:roleId", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.delete("/api/admin/users/:userId/roles/:roleId", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_users", "director"), async (req, res) => {
     try {
       await storage.removeRoleFromUser(req.params.userId as string, req.params.roleId as string);
       res.json({ success: true });
@@ -1481,7 +1538,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/admin/users/:userId", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.put("/api/admin/users/:userId", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_users", "director"), async (req, res) => {
     try {
       const user = await storage.getUser(req.params.userId as string);
       if (!user) {
@@ -1501,7 +1558,7 @@ export async function registerRoutes(
   });
 
   // ============ ALL DEPARTMENT RANKS (ADMIN) ============
-  app.get("/api/admin/department-ranks", isAuthenticated, hasPermission("admin"), async (req, res) => {
+  app.get("/api/admin/department-ranks", isAuthenticated, hasPermission("admin"), requireStaffPermission("staff_manage_roles", "director"), async (req, res) => {
     try {
       const departments = await storage.getDepartments();
       const result: Record<string, { department: typeof departments[0]; ranks: any[] }> = {};

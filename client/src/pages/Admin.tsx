@@ -232,7 +232,17 @@ export default function Admin() {
   
   const canAccessAdmin = hasPermission(user ?? null, "admin", authStatus?.isBootstrapMode);
 
-  if (userLoading || authLoading) {
+  const { data: accessibleTabs, isLoading: tabsLoading } = useQuery({
+    queryKey: ["adminAccessibleTabs"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/accessible-tabs", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json() as Promise<{ tabs: Record<string, boolean> }>;
+    },
+    enabled: !!user && canAccessAdmin,
+  });
+
+  if (userLoading || authLoading || tabsLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -246,6 +256,9 @@ export default function Admin() {
   if (!user || !canAccessAdmin) {
     return <Redirect to="/" />;
   }
+
+  const tabAccess = accessibleTabs?.tabs || {};
+  const visibleSidebarItems = SIDEBAR_ITEMS.filter((item) => tabAccess[item.id] !== false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -271,7 +284,7 @@ export default function Admin() {
           </div>
           
           <nav className="space-y-1">
-            {SIDEBAR_ITEMS.map((item) => {
+            {visibleSidebarItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
@@ -295,14 +308,21 @@ export default function Admin() {
 
         <main className="flex-1 ml-64 p-8">
           <div className="max-w-5xl">
-            {activeTab === "dashboard" && <DashboardTab />}
-            {activeTab === "users" && <UsersOverviewTab />}
-            {activeTab === "players" && <PlayerManagementTab />}
-            {activeTab === "roles" && <RoleManagementTab />}
-            {activeTab === "access" && <AccessControlTab />}
-            {activeTab === "seo" && <SeoManagementTab />}
-            {activeTab === "audit" && <AuditLogTab />}
-            {activeTab === "settings" && <SettingsTab />}
+            {activeTab === "dashboard" && tabAccess.dashboard !== false && <DashboardTab />}
+            {activeTab === "users" && tabAccess.users !== false && <UsersOverviewTab />}
+            {activeTab === "players" && tabAccess.players !== false && <PlayerManagementTab />}
+            {activeTab === "roles" && tabAccess.roles !== false && <RoleManagementTab />}
+            {activeTab === "access" && tabAccess.access !== false && <AccessControlTab />}
+            {activeTab === "seo" && tabAccess.seo !== false && <SeoManagementTab />}
+            {activeTab === "audit" && tabAccess.audit !== false && <AuditLogTab />}
+            {activeTab === "settings" && tabAccess.settings !== false && <SettingsTab />}
+            {tabAccess[activeTab] === false && (
+              <div className="text-center py-20">
+                <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-40" />
+                <h2 className="text-xl font-bold mb-2">Access Restricted</h2>
+                <p className="text-muted-foreground">You don't have permission to access this section.</p>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -1453,6 +1473,20 @@ const ACCESS_CONTROL_PERMISSIONS = [
   { key: "access_manage_ranks", label: "Manage Department Ranks", description: "Who can edit rank names, priorities, and Discord IDs", defaultTier: "executive" },
 ];
 
+const STAFF_SETTINGS_PERMISSIONS = [
+  { key: "staff_access_admin_panel", label: "Access Admin Panel", description: "Who can open the Admin Panel at all (view Dashboard)", defaultTier: "director" },
+  { key: "staff_manage_users", label: "Manage Users", description: "Who can view and edit user accounts, assign roles, and modify staff tiers", defaultTier: "director" },
+  { key: "staff_manage_players", label: "Manage Players", description: "Who can view and search player profiles and linked accounts", defaultTier: "executive" },
+  { key: "staff_manage_roles", label: "Manage Roles", description: "Who can create, edit, and delete website roles and Discord role mappings", defaultTier: "director" },
+  { key: "staff_manage_access_control", label: "Manage Access Control", description: "Who can change these permission settings (this section)", defaultTier: "director" },
+  { key: "staff_manage_seo", label: "Manage SEO Settings", description: "Who can edit page titles, descriptions, and meta tags", defaultTier: "executive" },
+  { key: "staff_view_audit_log", label: "View Audit Log", description: "Who can view the audit log of all administrative actions", defaultTier: "executive" },
+  { key: "staff_manage_settings", label: "Manage Server Settings", description: "Who can edit general server settings (Discord URL, FiveM URL, about text)", defaultTier: "director" },
+  { key: "staff_sync_roles", label: "Sync Discord Roles", description: "Who can trigger bulk Discord role synchronisation for all users", defaultTier: "director" },
+  { key: "staff_manage_leadership", label: "Manage Leadership Settings", description: "Who can edit department leadership settings, squads, and roster assignments", defaultTier: "executive" },
+  { key: "staff_delete_applications", label: "Delete Applications", description: "Who can permanently delete submitted applications", defaultTier: "director" },
+];
+
 function AccessControlTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1470,6 +1504,9 @@ function AccessControlTab() {
       for (const perm of ACCESS_CONTROL_PERMISSIONS) {
         settings[perm.key] = savedSettings[perm.key] || perm.defaultTier;
       }
+      for (const perm of STAFF_SETTINGS_PERMISSIONS) {
+        settings[perm.key] = savedSettings[perm.key] || perm.defaultTier;
+      }
       setLocalSettings(settings);
       setInitialized(true);
     }
@@ -1485,35 +1522,57 @@ function AccessControlTab() {
 
   if (isLoading) return <Skeleton className="h-96" />;
 
-  const tiers = ["director", "executive", "manager", "administrator", "moderator", "support"];
+  const tiers = ["director", "executive", "manager", "administrator", "moderator", "support", "development"];
+
+  const renderPermissionRow = (perm: { key: string; label: string; description: string; defaultTier: string }) => (
+    <div key={perm.key} className="flex items-center justify-between p-4 rounded-lg hover:bg-zinc-800/30 transition-colors" data-testid={`access-control-${perm.key}`}>
+      <div className="flex-1">
+        <p className="font-medium text-sm">{perm.label}</p>
+        <p className="text-xs text-muted-foreground">{perm.description}</p>
+      </div>
+      <select
+        value={localSettings[perm.key] || perm.defaultTier}
+        onChange={(e) => setLocalSettings(prev => ({ ...prev, [perm.key]: e.target.value }))}
+        className="bg-zinc-800 border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground"
+        data-testid={`select-access-${perm.key}`}
+      >
+        {tiers.map((tier) => (
+          <option key={tier} value={tier}>{tier.charAt(0).toUpperCase() + tier.slice(1)}+</option>
+        ))}
+      </select>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Access Control</h2>
-        <p className="text-muted-foreground">Configure the minimum staff tier required for each action. Directors and Executives always have full access.</p>
+        <p className="text-muted-foreground">Configure the minimum staff tier required for each action. Directors always have full access regardless of settings.</p>
       </div>
 
       <Card className="bg-zinc-900/40 border-white/5">
-        <CardContent className="pt-6 space-y-1">
-          {ACCESS_CONTROL_PERMISSIONS.map((perm) => (
-            <div key={perm.key} className="flex items-center justify-between p-4 rounded-lg hover:bg-zinc-800/30 transition-colors" data-testid={`access-control-${perm.key}`}>
-              <div className="flex-1">
-                <p className="font-medium text-sm">{perm.label}</p>
-                <p className="text-xs text-muted-foreground">{perm.description}</p>
-              </div>
-              <select
-                value={localSettings[perm.key] || perm.defaultTier}
-                onChange={(e) => setLocalSettings(prev => ({ ...prev, [perm.key]: e.target.value }))}
-                className="bg-zinc-800 border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground"
-                data-testid={`select-access-${perm.key}`}
-              >
-                {tiers.map((tier) => (
-                  <option key={tier} value={tier}>{tier.charAt(0).toUpperCase() + tier.slice(1)}+</option>
-                ))}
-              </select>
-            </div>
-          ))}
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="w-4 h-4 text-orange-400" />
+            Staff Settings
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Control who can access admin panel sections and perform staff-level actions</p>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {STAFF_SETTINGS_PERMISSIONS.map(renderPermissionRow)}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Lock className="w-4 h-4 text-blue-400" />
+            Department Permissions
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Control who can perform actions within department portals and content areas</p>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {ACCESS_CONTROL_PERMISSIONS.map(renderPermissionRow)}
         </CardContent>
       </Card>
 

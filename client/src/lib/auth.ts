@@ -106,13 +106,11 @@ export function loginWithDiscord() {
 
 export function hasPermission(user: User | null, permission: string, isBootstrapMode?: boolean): boolean {
   if (!user) return false;
-  // Admin panel: Only Directors and Executives
   if (permission === "admin") {
-    if (user.staffTier === "director" || user.staffTier === "executive") return true;
+    if (user.isStaff) return true;
     if (isBootstrapMode) return true;
     return false;
   }
-  // Directors and executives have full access to non-admin permissions
   if (user.staffTier === "director" || user.staffTier === "executive") return true;
   if (user.websiteRoles?.includes(permission)) return true;
   return false;

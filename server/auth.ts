@@ -235,6 +235,16 @@ export const hasRole = (roleIds: string[]): RequestHandler => {
   };
 };
 
+const STAFF_TIER_HIERARCHY = ["director", "executive", "manager", "administrator", "moderator", "support", "development"];
+
+export function meetsStaffTier(userTier: string | null | undefined, requiredTier: string): boolean {
+  if (!userTier) return false;
+  const userIdx = STAFF_TIER_HIERARCHY.indexOf(userTier);
+  const reqIdx = STAFF_TIER_HIERARCHY.indexOf(requiredTier);
+  if (userIdx === -1 || reqIdx === -1) return false;
+  return userIdx <= reqIdx;
+}
+
 export const hasPermission = (permission: string): RequestHandler => {
   return async (req, res, next) => {
     if (!req.isAuthenticated()) {
@@ -243,12 +253,16 @@ export const hasPermission = (permission: string): RequestHandler => {
     const websiteRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
     
-    // Admin panel: Only Directors and Executives have access
+    if (staffTier === "director") {
+      return next();
+    }
+    
     if (permission === "admin") {
-      if (staffTier === "director" || staffTier === "executive") {
+      const setting = await storage.getAdminSetting("staff_access_admin_panel");
+      const requiredTier = setting?.value || "director";
+      if (staffTier && meetsStaffTier(staffTier, requiredTier)) {
         return next();
       }
-      // Bootstrap: If no role mappings exist, allow the first logged-in user to access admin
       const mappings = await storage.getRoleMappings();
       if (mappings.length === 0) {
         console.log("Bootstrap mode: Granting admin access to", req.user?.username);
@@ -257,12 +271,10 @@ export const hasPermission = (permission: string): RequestHandler => {
       return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
     }
     
-    // Directors and executives have full access to non-admin permissions
-    if (staffTier === "director" || staffTier === "executive") {
+    if (staffTier === "executive") {
       return next();
     }
     
-    // Check specific permission
     if (websiteRoles.includes(permission)) {
       return next();
     }
