@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ClipboardList, ChevronLeft, ChevronDown, ChevronUp, Send, Settings, Lock, Unlock, Check, X, Trash2, Plus, ArrowLeft, FileText, Users, Shield, MessageSquare, HelpCircle, ExternalLink, Edit, Save, ArrowUp, ArrowDown } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronDown, ChevronUp, Send, Settings, Lock, Unlock, Check, X, Trash2, Plus, ArrowLeft, FileText, Users, Shield, MessageSquare, HelpCircle, ExternalLink, Edit, Save, ArrowUp, ArrowDown, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -237,6 +237,137 @@ function SubmissionThread({ submissionId, user, hasStaffAccess, onBack }: { subm
   );
 }
 
+function SupportFormManagersDialog({ formId, formTitle, open, onOpenChange }: { formId: string; formTitle: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+  const { data: managersData } = useQuery({
+    queryKey: ["supportFormManagers", formId],
+    queryFn: async () => {
+      const res = await fetch(`/api/support/forms/${formId}/managers`, { credentials: "include" });
+      if (!res.ok) return { managers: [] };
+      return res.json() as Promise<{ managers: Array<{ id: string; formId: string; userId: string; username: string; displayName: string | null; avatar: string | null; discordId: string }> }>;
+    },
+    enabled: open,
+  });
+
+  const { data: allUsersData } = useQuery({
+    queryKey: ["allUsers"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/users", { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.users || data) as Array<{ id: string; username: string; displayName: string | null; avatar: string | null; discordId: string }>;
+    },
+    enabled: open,
+  });
+
+  const managers = managersData?.managers || [];
+  const managerUserIds = managers.map(m => m.userId);
+  const availableUsers = (allUsersData || []).filter(u => !managerUserIds.includes(u.id));
+
+  const addMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/support/forms/${formId}/managers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Manager added" });
+      setSelectedUserId("");
+      queryClient.invalidateQueries({ queryKey: ["supportFormManagers", formId] });
+    },
+    onError: () => toast({ title: "Failed to add manager", variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/support/forms/${formId}/managers/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Manager removed" });
+      queryClient.invalidateQueries({ queryKey: ["supportFormManagers", formId] });
+    },
+    onError: () => toast({ title: "Failed to remove manager", variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserCog className="w-5 h-5 text-primary" />
+            Form Managers
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">Assign users to manage "{formTitle}" - they can view and respond to submissions.</p>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger className="flex-1" data-testid="select-support-form-manager">
+                <SelectValue placeholder="Select a user to add..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.displayName || u.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={!selectedUserId || addMutation.isPending}
+              onClick={() => selectedUserId && addMutation.mutate(selectedUserId)}
+              data-testid="button-add-support-form-manager"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {managers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No managers assigned yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {managers.map(m => (
+                <div key={m.userId} className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/40" data-testid={`support-form-manager-${m.userId}`}>
+                  <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                    <img
+                      src={m.avatar ? `https://cdn.discordapp.com/avatars/${m.discordId}/${m.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(m.discordId || "0") % 5}.png`}
+                      alt={m.displayName || m.username}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-sm flex-1">{m.displayName || m.username}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-red-400 hover:text-red-300"
+                    onClick={() => removeMutation.mutate(m.userId)}
+                    data-testid={`button-remove-support-manager-${m.userId}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FormSettings({ form, onClose }: { form: SupportForm; onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -443,9 +574,21 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
   const [view, setView] = useState<"list" | "apply" | "thread" | "settings">(deepLinkSubmissionId ? "thread" : "list");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(deepLinkSubmissionId || null);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [showManagersDialog, setShowManagersDialog] = useState(false);
+
+  const { data: managedFormsData } = useQuery({
+    queryKey: ["support-managed-forms"],
+    queryFn: async () => {
+      const res = await fetch("/api/support/my-managed-forms", { credentials: "include" });
+      if (!res.ok) return { managedFormIds: [] };
+      return res.json() as Promise<{ managedFormIds: string[] }>;
+    },
+    enabled: !!user,
+  });
 
   const tier = user?.staffTier;
-  const hasStaffAccess = tier && ((form.accessTiers || []).includes(tier) || tier === "director" || tier === "executive");
+  const isFormManager = (managedFormsData?.managedFormIds || []).includes(form.id);
+  const hasStaffAccess = (tier && ((form.accessTiers || []).includes(tier) || tier === "director" || tier === "executive")) || isFormManager;
   const isAdmin = tier === "director" || tier === "executive";
 
   const { data: questionsData } = useQuery({
@@ -636,12 +779,26 @@ function FormDetail({ form, user, onBack }: { form: SupportForm; user: any; onBa
             </Button>
           )}
           {isAdmin && (
-            <Button size="sm" variant="outline" onClick={() => setView("settings")} className="gap-1" data-testid="button-form-settings">
-              <Settings className="w-3 h-3" /> Settings
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={() => setShowManagersDialog(true)} className="gap-1" data-testid="button-form-managers-detail">
+                <UserCog className="w-3 h-3" /> Managers
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setView("settings")} className="gap-1" data-testid="button-form-settings">
+                <Settings className="w-3 h-3" /> Settings
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      {showManagersDialog && (
+        <SupportFormManagersDialog
+          formId={form.id}
+          formTitle={form.title}
+          open={showManagersDialog}
+          onOpenChange={setShowManagersDialog}
+        />
+      )}
 
       {!form.isOpen && (
         <Card className="bg-red-500/10 border-red-500/20 mb-6">
@@ -956,6 +1113,8 @@ function ApplicationsSection({ user }: { user: any }) {
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newForm, setNewForm] = useState({ title: "", description: "", key: "" });
+  const [managersFormId, setManagersFormId] = useState<string | null>(null);
+  const [managersFormTitle, setManagersFormTitle] = useState("");
 
   const searchParams = new URLSearchParams(window.location.search);
   const deepLinkFormId = searchParams.get("form");
@@ -1067,15 +1226,27 @@ function ApplicationsSection({ user }: { user: any }) {
                     )}
                   </div>
                   {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      onClick={(e) => { e.stopPropagation(); deleteFormMutation.mutate(form.id); }}
-                      data-testid={`button-delete-form-${form.id}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-primary hover:text-primary/80 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        onClick={(e) => { e.stopPropagation(); setManagersFormId(form.id); setManagersFormTitle(form.title); }}
+                        title="Manage form managers"
+                        data-testid={`button-form-managers-${form.id}`}
+                      >
+                        <UserCog className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        onClick={(e) => { e.stopPropagation(); deleteFormMutation.mutate(form.id); }}
+                        data-testid={`button-delete-form-${form.id}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1119,6 +1290,15 @@ function ApplicationsSection({ user }: { user: any }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {managersFormId && (
+        <SupportFormManagersDialog
+          formId={managersFormId}
+          formTitle={managersFormTitle}
+          open={!!managersFormId}
+          onOpenChange={(open) => { if (!open) setManagersFormId(null); }}
+        />
+      )}
     </div>
   );
 }

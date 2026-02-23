@@ -2083,8 +2083,9 @@ export async function registerRoutes(
       const tier = req.user?.staffTier;
       const hasAccess = tier && (form.accessTiers || []).includes(tier);
       const isTopTier = tier === "director" || tier === "executive";
+      const isManager = await storage.isFormManager(form.id, req.user!.id);
 
-      if (!hasAccess && !isTopTier) {
+      if (!hasAccess && !isTopTier && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -2116,7 +2117,9 @@ export async function registerRoutes(
 
       const allUsers = await storage.getAllUsers();
       const recipients = allUsers.filter(u => u.staffTier && (form.accessTiers || []).includes(u.staffTier));
+      const recipientIds = new Set<string>();
       for (const recipient of recipients) {
+        recipientIds.add(recipient.id);
         await storage.createNotification({
           userId: recipient.id,
           type: "application_submitted",
@@ -2126,6 +2129,21 @@ export async function registerRoutes(
           relatedId: submission.id,
           isRead: false,
         });
+      }
+
+      const formManagers = await storage.getFormManagers(form.id);
+      for (const manager of formManagers) {
+        if (!recipientIds.has(manager.userId) && manager.userId !== req.user!.id) {
+          await storage.createNotification({
+            userId: manager.userId,
+            type: "application_submitted",
+            title: "New Support Submission",
+            message: `${req.user!.displayName || req.user!.username} submitted a ${form.title} application.`,
+            link: `/support?form=${form.id}&submission=${submission.id}`,
+            relatedId: submission.id,
+            isRead: false,
+          });
+        }
       }
 
       res.json({ submission });
@@ -2144,8 +2162,9 @@ export async function registerRoutes(
       const isOwner = submission.userId === req.user?.id;
       const hasAccess = tier && form && (form.accessTiers || []).includes(tier);
       const isTopTier = tier === "director" || tier === "executive";
+      const isManager = await storage.isFormManager(submission.formId, req.user!.id);
 
-      if (!isOwner && !hasAccess && !isTopTier) {
+      if (!isOwner && !hasAccess && !isTopTier && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -2170,8 +2189,9 @@ export async function registerRoutes(
       const tier = req.user?.staffTier;
       const hasAccess = tier && form && (form.accessTiers || []).includes(tier);
       const isTopTier = tier === "director" || tier === "executive";
+      const isManager = await storage.isFormManager(submission.formId, req.user!.id);
 
-      if (!hasAccess && !isTopTier) {
+      if (!hasAccess && !isTopTier && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -2221,8 +2241,9 @@ export async function registerRoutes(
       const isOwner = submission.userId === req.user?.id;
       const hasAccess = tier && form && (form.accessTiers || []).includes(tier);
       const isTopTier = tier === "director" || tier === "executive";
+      const isManager = await storage.isFormManager(submission.formId, req.user!.id);
 
-      if (!isOwner && !hasAccess && !isTopTier) {
+      if (!isOwner && !hasAccess && !isTopTier && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -2247,6 +2268,20 @@ export async function registerRoutes(
             isRead: false,
           });
         }
+        const formManagers = await storage.getFormManagers(submission.formId);
+        for (const manager of formManagers) {
+          if (!staffRecipients.find(r => r.id === manager.userId)) {
+            await storage.createNotification({
+              userId: manager.userId,
+              type: "application_response",
+              title: "Application Reply",
+              message: `${req.user!.displayName || req.user!.username} replied to their ${form?.title || "support"} application.`,
+              link: `/support?form=${submission.formId}&submission=${submission.id}`,
+              relatedId: submission.id,
+              isRead: false,
+            });
+          }
+        }
       } else {
         await storage.createNotification({
           userId: submission.userId,
@@ -2268,15 +2303,90 @@ export async function registerRoutes(
 
   app.delete("/api/support/submissions/:id", isAuthenticated, async (req, res) => {
     try {
+      const submission = await storage.getSupportSubmission(req.params.id as string);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+
       const tier = req.user?.staffTier;
       const hasAccess = tier && ["manager", "executive", "director"].includes(tier);
-      if (!hasAccess) {
+      const isManager = await storage.isFormManager(submission.formId, req.user!.id);
+      if (!hasAccess && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
       await storage.deleteSupportSubmission(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete submission" });
+    }
+  });
+
+  // ============ SUPPORT FORM MANAGERS ROUTES ============
+
+  app.get("/api/support/forms/:id/managers", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["director", "executive"].includes(tier)) {
+        return res.status(403).json({ error: "Only Directors/Executives can view form managers" });
+      }
+      const managers = await storage.getFormManagers(req.params.id);
+      const enriched = await Promise.all(managers.map(async (m) => {
+        const u = await storage.getUser(m.userId);
+        return { ...m, username: u?.username || "Unknown", displayName: u?.displayName || null, avatar: u?.avatar || null, discordId: u?.discordId || "" };
+      }));
+      res.json({ managers: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch form managers" });
+    }
+  });
+
+  app.post("/api/support/forms/:id/managers", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["director", "executive"].includes(tier)) {
+        return res.status(403).json({ error: "Only Directors/Executives can assign form managers" });
+      }
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId is required" });
+
+      const existing = await storage.isFormManager(req.params.id, userId);
+      if (existing) return res.status(400).json({ error: "User is already a manager for this form" });
+
+      const form = await storage.getSupportForm(req.params.id);
+      const manager = await storage.addFormManager({ formId: req.params.id, userId, assignedBy: req.user!.id });
+
+      const targetUser = await storage.getUser(userId);
+      await logAuditEvent(req.user!.id, "Assigned support form manager", "forms", `User: ${targetUser?.username || userId}, Form: ${form?.title || req.params.id}`, req.params.id, "support_form");
+
+      res.json({ manager });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add form manager" });
+    }
+  });
+
+  app.delete("/api/support/forms/:id/managers/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["director", "executive"].includes(tier)) {
+        return res.status(403).json({ error: "Only Directors/Executives can remove form managers" });
+      }
+      await storage.removeFormManager(req.params.id, req.params.userId);
+
+      const form = await storage.getSupportForm(req.params.id);
+      const targetUser = await storage.getUser(req.params.userId);
+      await logAuditEvent(req.user!.id, "Removed support form manager", "forms", `User: ${targetUser?.username || req.params.userId}, Form: ${form?.title || req.params.id}`, req.params.id, "support_form");
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove form manager" });
+    }
+  });
+
+  // Also add endpoint for users to check which support forms they manage
+  app.get("/api/support/my-managed-forms", isAuthenticated, async (req, res) => {
+    try {
+      const managedForms = await storage.getFormManagersByUser(req.user!.id);
+      res.json({ managedFormIds: managedForms.map(m => m.formId) });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch managed forms" });
     }
   });
 

@@ -1422,7 +1422,7 @@ function FormManagersDialog({ formId, formTitle, code, open, onOpenChange }: { f
       const res = await fetch("/api/admin/users", { credentials: "include" });
       if (!res.ok) return [];
       const data = await res.json();
-      return data as Array<{ id: string; username: string; displayName: string | null; avatar: string | null; discordId: string }>;
+      return (data.users || data) as Array<{ id: string; username: string; displayName: string | null; avatar: string | null; discordId: string }>;
     },
     enabled: open,
   });
