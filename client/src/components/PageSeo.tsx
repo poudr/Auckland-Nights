@@ -17,7 +17,7 @@ export function PageSeo({ page }: { page: string }) {
     queryFn: async () => {
       const res = await fetch(`/api/seo/${page}`);
       if (!res.ok) return null;
-      return res.json() as Promise<{ title: string | null; description: string | null; faviconUrl: string | null }>;
+      return res.json() as Promise<{ title: string | null; description: string | null; faviconUrl: string | null; ogImageUrl: string | null }>;
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -57,6 +57,14 @@ export function PageSeo({ page }: { page: string }) {
         document.head.appendChild(link);
       }
       link.href = data.faviconUrl;
+    }
+
+    if (data?.ogImageUrl) {
+      const fullUrl = data.ogImageUrl.startsWith("http") ? data.ogImageUrl : `${window.location.origin}${data.ogImageUrl}`;
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage) ogImage.setAttribute("content", fullUrl);
+      const twitterImage = document.querySelector('meta[name="twitter:image"]');
+      if (twitterImage) twitterImage.setAttribute("content", fullUrl);
     }
   }, [data, page]);
 

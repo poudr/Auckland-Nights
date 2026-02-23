@@ -75,10 +75,12 @@ export async function registerRoutes(
     const titleSetting = await storage.getAdminSetting(`seo_${page}_title`);
     const descSetting = await storage.getAdminSetting(`seo_${page}_description`);
     const faviconSetting = await storage.getAdminSetting("favicon_url");
+    const ogImageSetting = await storage.getAdminSetting("og_image_url");
     res.json({
       title: titleSetting?.value || null,
       description: descSetting?.value || null,
       faviconUrl: faviconSetting?.value || null,
+      ogImageUrl: ogImageSetting?.value || null,
     });
   });
 

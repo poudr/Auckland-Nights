@@ -1589,6 +1589,8 @@ function SeoManagementTab() {
   const [initialized, setInitialized] = useState(false);
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const [faviconUploading, setFaviconUploading] = useState(false);
+  const ogImageInputRef = useRef<HTMLInputElement>(null);
+  const [ogImageUploading, setOgImageUploading] = useState(false);
 
   const pages = [
     { key: "home", label: "Home Page", path: "/" },
@@ -1661,6 +1663,42 @@ function SeoManagementTab() {
     }
   };
 
+  const handleOgImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid File", description: "Please upload an image file (PNG, JPG, WebP)", variant: "destructive" });
+      return;
+    }
+
+    setOgImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/uploads/file", { method: "POST", body: formData });
+      if (!response.ok) throw new Error("Upload failed");
+      const data = await response.json();
+
+      await saveSetting("og_image_url", data.objectPath);
+      queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["seo"] });
+
+      const fullUrl = data.objectPath.startsWith("http") ? data.objectPath : `${window.location.origin}${data.objectPath}`;
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage) ogImage.setAttribute("content", fullUrl);
+      const twitterImage = document.querySelector('meta[name="twitter:image"]');
+      if (twitterImage) twitterImage.setAttribute("content", fullUrl);
+
+      toast({ title: "Banner Image Updated", description: "Your site's social sharing image has been updated." });
+    } catch (err) {
+      toast({ title: "Upload Failed", description: "Could not upload banner image", variant: "destructive" });
+    } finally {
+      setOgImageUploading(false);
+      if (ogImageInputRef.current) ogImageInputRef.current.value = "";
+    }
+  };
+
   if (isLoading) return <Skeleton className="h-96" />;
 
   return (
@@ -1707,6 +1745,50 @@ function SeoManagementTab() {
               {savedSettings?.favicon_url && (
                 <p className="text-xs text-muted-foreground mt-1">Current: {savedSettings.favicon_url}</p>
               )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900/40 border-white/5" data-testid="seo-og-image-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Image className="w-4 h-4 text-primary" />
+            Social Share Banner
+          </CardTitle>
+          <CardDescription>Upload the banner image that appears when your site is shared on Discord, Twitter, Facebook, etc. Recommended size: 1200x630px</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {savedSettings?.og_image_url && (
+              <div className="rounded-lg border border-white/10 bg-zinc-800 overflow-hidden max-w-md">
+                <img src={savedSettings.og_image_url} alt="Current social share banner" className="w-full h-auto object-cover" data-testid="img-current-og-image" />
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <input
+                  type="file"
+                  ref={ogImageInputRef}
+                  onChange={handleOgImageUpload}
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  data-testid="input-og-image-upload"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => ogImageInputRef.current?.click()}
+                  disabled={ogImageUploading}
+                  data-testid="button-upload-og-image"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {ogImageUploading ? "Uploading..." : savedSettings?.og_image_url ? "Change Banner Image" : "Upload Banner Image"}
+                </Button>
+                {savedSettings?.og_image_url && (
+                  <p className="text-xs text-muted-foreground mt-1">Current: {savedSettings.og_image_url}</p>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
