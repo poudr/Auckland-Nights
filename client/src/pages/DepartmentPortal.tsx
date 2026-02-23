@@ -12,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/hooks/use-upload";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown, UserCog } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -1192,6 +1194,8 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [editingForm, setEditingForm] = useState<AppForm | null>(null);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(deepLinkSubmissionId || null);
+  const [managersFormId, setManagersFormId] = useState<string | null>(null);
+  const [managersFormTitle, setManagersFormTitle] = useState("");
 
   const { data: formsData } = useQuery({
     queryKey: ["forms", code],
@@ -1280,6 +1284,9 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
                     {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
                   </div>
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setManagersFormId(form.id); setManagersFormTitle(form.title); }} title="Manage Assignees" data-testid={`button-managers-form-${form.id}`}>
+                      <UserCog className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setEditingForm(form); setView("edit-form"); }} data-testid={`button-edit-form-${form.id}`}>
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -1380,7 +1387,148 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
           </CardContent>
         </Card>
       )}
+
+      {managersFormId && (
+        <FormManagersDialog
+          formId={managersFormId}
+          formTitle={managersFormTitle}
+          code={code}
+          open={!!managersFormId}
+          onOpenChange={(open) => { if (!open) setManagersFormId(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+function FormManagersDialog({ formId, formTitle, code, open, onOpenChange }: { formId: string; formTitle: string; code: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+  const { data: managersData } = useQuery({
+    queryKey: ["formManagers", formId],
+    queryFn: async () => {
+      const res = await fetch(`/api/forms/${formId}/managers`, { credentials: "include" });
+      if (!res.ok) return { managers: [] };
+      return res.json() as Promise<{ managers: Array<{ id: string; formId: string; userId: string; username: string; displayName: string | null; avatar: string | null; discordId: string }> }>;
+    },
+    enabled: open,
+  });
+
+  const { data: allUsersData } = useQuery({
+    queryKey: ["allUsers"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/users", { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data as Array<{ id: string; username: string; displayName: string | null; avatar: string | null; discordId: string }>;
+    },
+    enabled: open,
+  });
+
+  const managers = managersData?.managers || [];
+  const managerUserIds = managers.map(m => m.userId);
+  const availableUsers = (allUsersData || []).filter(u => !managerUserIds.includes(u.id));
+
+  const addMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/forms/${formId}/managers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Manager added" });
+      setSelectedUserId("");
+      queryClient.invalidateQueries({ queryKey: ["formManagers", formId] });
+    },
+    onError: () => toast({ title: "Failed to add manager", variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/forms/${formId}/managers/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Manager removed" });
+      queryClient.invalidateQueries({ queryKey: ["formManagers", formId] });
+    },
+    onError: () => toast({ title: "Failed to remove manager", variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserCog className="w-5 h-5 text-primary" />
+            Form Managers
+          </DialogTitle>
+          <DialogDescription>Assign users to manage "{formTitle}" - they can view and respond to submissions.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger className="flex-1" data-testid="select-form-manager">
+                <SelectValue placeholder="Select a user to add..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.displayName || u.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={!selectedUserId || addMutation.isPending}
+              onClick={() => selectedUserId && addMutation.mutate(selectedUserId)}
+              data-testid="button-add-form-manager"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {managers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No managers assigned yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {managers.map(m => (
+                <div key={m.userId} className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/40" data-testid={`form-manager-${m.userId}`}>
+                  <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                    <img
+                      src={m.avatar ? `https://cdn.discordapp.com/avatars/${m.discordId}/${m.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(m.discordId || "0") % 5}.png`}
+                      alt={m.displayName || m.username}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-sm flex-1">{m.displayName || m.username}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-red-400 hover:text-red-300"
+                    onClick={() => removeMutation.mutate(m.userId)}
+                    data-testid={`button-remove-manager-${m.userId}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

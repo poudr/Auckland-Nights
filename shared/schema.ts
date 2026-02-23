@@ -456,6 +456,22 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 
+// ============ FORM MANAGERS ============
+export const formManagers = pgTable("form_managers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  assignedBy: varchar("assigned_by"),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+});
+
+export const insertFormManagerSchema = createInsertSchema(formManagers).omit({
+  id: true,
+  assignedAt: true,
+});
+export type InsertFormManager = z.infer<typeof insertFormManagerSchema>;
+export type FormManager = typeof formManagers.$inferSelect;
+
 // ============ STAFF HIERARCHY (for Meet the Team) ============
 export const STAFF_HIERARCHY = [
   "director",

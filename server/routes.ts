@@ -40,6 +40,11 @@ async function isUserDepartmentLeadership(user: any, departmentCode: string): Pr
   return false;
 }
 
+async function canManageForm(user: any, formId: string, departmentCode: string): Promise<boolean> {
+  if (await isUserDepartmentLeadership(user, departmentCode)) return true;
+  return await storage.isFormManager(formId, user.id);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -69,9 +74,11 @@ export async function registerRoutes(
     const page = req.params.page;
     const titleSetting = await storage.getAdminSetting(`seo_${page}_title`);
     const descSetting = await storage.getAdminSetting(`seo_${page}_description`);
+    const faviconSetting = await storage.getAdminSetting("favicon_url");
     res.json({
       title: titleSetting?.value || null,
       description: descSetting?.value || null,
+      faviconUrl: faviconSetting?.value || null,
     });
   });
 
@@ -580,8 +587,8 @@ export async function registerRoutes(
       if (!existingFormCheck) {
         return res.status(404).json({ error: "Form not found" });
       }
-      if (!(await isUserDepartmentLeadership(user, existingFormCheck.departmentCode))) {
-        return res.status(403).json({ error: "Only leadership can edit forms" });
+      if (!(await canManageForm(user, req.params.id, existingFormCheck.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership or assigned managers can edit forms" });
       }
 
       const { title, description, questions, rolesOnAccept, isWhitelist, notifyRanks } = req.body;
@@ -651,8 +658,8 @@ export async function registerRoutes(
       if (!formToDelete) {
         return res.status(404).json({ error: "Form not found" });
       }
-      if (!(await isUserDepartmentLeadership(user, formToDelete.departmentCode))) {
-        return res.status(403).json({ error: "Only leadership can delete forms" });
+      if (!(await canManageForm(user, req.params.id, formToDelete.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership or assigned managers can delete forms" });
       }
       await storage.deleteApplicationForm(req.params.id);
       res.json({ success: true });
@@ -671,8 +678,8 @@ export async function registerRoutes(
       const form = await storage.getApplicationForm(formId);
       if (!form) return res.status(404).json({ error: "Form not found" });
 
-      if (!(await isUserDepartmentLeadership(user, form.departmentCode))) {
-        return res.status(403).json({ error: "Only leadership can reorder questions" });
+      if (!(await canManageForm(user, formId, form.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership or assigned managers can reorder questions" });
       }
 
       const questions = await storage.getQuestionsByForm(formId);
@@ -706,6 +713,9 @@ export async function registerRoutes(
       const code = req.params.code as string;
       const isLeadership = await isUserDepartmentLeadership(user, code);
 
+      const managedForms = await storage.getFormManagersByUser(user.id);
+      const managedFormIds = managedForms.map(m => m.formId);
+
       if (isLeadership) {
         const submissions = await storage.getSubmissionsByDepartment(code);
         const enriched = await Promise.all(submissions.map(async (sub) => {
@@ -723,17 +733,23 @@ export async function registerRoutes(
         return res.json({ submissions: enriched });
       }
 
-      const submissions = await storage.getSubmissionsByUser(user.id);
-      const deptSubmissions = submissions.filter(s => s.departmentCode === code);
-      const enriched = await Promise.all(deptSubmissions.map(async (sub) => {
+      const allSubmissions = await storage.getSubmissionsByDepartment(code);
+      const managedSubmissions = allSubmissions.filter(s => managedFormIds.includes(s.formId));
+      const userSubmissions = await storage.getSubmissionsByUser(user.id);
+      const deptUserSubmissions = userSubmissions.filter(s => s.departmentCode === code);
+
+      const combined = [...managedSubmissions, ...deptUserSubmissions.filter(s => !managedSubmissions.find(ms => ms.id === s.id))];
+
+      const enriched = await Promise.all(combined.map(async (sub) => {
         const form = await storage.getApplicationForm(sub.formId);
+        const submitter = await storage.getUser(sub.userId);
         return {
           ...sub,
           formTitle: form?.title || "Unknown Form",
-          username: user.username,
-          displayName: user.displayName,
-          avatar: user.avatar,
-          discordId: user.discordId,
+          username: submitter?.username || "Unknown",
+          displayName: submitter?.displayName || null,
+          avatar: submitter?.avatar || null,
+          discordId: submitter?.discordId || "",
         };
       }));
       res.json({ submissions: enriched });
@@ -749,7 +765,8 @@ export async function registerRoutes(
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
       const isLeadership = await isUserDepartmentLeadership(user, submission.departmentCode);
-      if (submission.userId !== user.id && !isLeadership) {
+      const isManager = !isLeadership && await storage.isFormManager(submission.formId, user.id);
+      if (submission.userId !== user.id && !isLeadership && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -860,8 +877,8 @@ export async function registerRoutes(
       const submission = await storage.updateSubmission(req.params.id, { status });
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
-      if (!(await isUserDepartmentLeadership(user, submission.departmentCode))) {
-        return res.status(403).json({ error: "Only leadership can change status" });
+      if (!(await canManageForm(user, submission.formId, submission.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership or assigned managers can change status" });
       }
 
       const form = await storage.getApplicationForm(submission.formId);
@@ -997,7 +1014,8 @@ export async function registerRoutes(
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
       const isLeadership = await isUserDepartmentLeadership(user, submission.departmentCode);
-      if (submission.userId !== user.id && !isLeadership) {
+      const isManager = !isLeadership && await storage.isFormManager(submission.formId, user.id);
+      if (submission.userId !== user.id && !isLeadership && !isManager) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -1010,7 +1028,7 @@ export async function registerRoutes(
       const form = await storage.getApplicationForm(submission.formId);
       const dept = await storage.getDepartment(submission.departmentCode);
 
-      if (isLeadership && submission.userId !== user.id) {
+      if ((isLeadership || isManager) && submission.userId !== user.id) {
         await storage.createNotification({
           userId: submission.userId,
           type: "application_response",
@@ -1058,8 +1076,8 @@ export async function registerRoutes(
       const submission = await storage.getSubmission(req.params.id);
       if (!submission) return res.status(404).json({ error: "Submission not found" });
 
-      if (!(await isUserDepartmentLeadership(user, submission.departmentCode))) {
-        return res.status(403).json({ error: "Only leadership can delete applications" });
+      if (!(await canManageForm(user, submission.formId, submission.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership or assigned managers can delete applications" });
       }
 
       await storage.deleteSubmission(req.params.id);
@@ -1067,6 +1085,87 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Delete submission error:", error);
       res.status(500).json({ error: "Failed to delete application" });
+    }
+  });
+
+  // ============ FORM MANAGERS ROUTES ============
+
+  app.get("/api/forms/:id/managers", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const form = await storage.getApplicationForm(req.params.id);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      if (!(await isUserDepartmentLeadership(user, form.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can view form managers" });
+      }
+
+      const managers = await storage.getFormManagers(req.params.id);
+      const enriched = await Promise.all(managers.map(async (m) => {
+        const u = await storage.getUser(m.userId);
+        return {
+          ...m,
+          username: u?.username || "Unknown",
+          displayName: u?.displayName || null,
+          avatar: u?.avatar || null,
+          discordId: u?.discordId || "",
+        };
+      }));
+      res.json({ managers: enriched });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch form managers" });
+    }
+  });
+
+  app.post("/api/forms/:id/managers", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const form = await storage.getApplicationForm(req.params.id);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      if (!(await isUserDepartmentLeadership(user, form.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can assign form managers" });
+      }
+
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId is required" });
+
+      const existing = await storage.isFormManager(req.params.id, userId);
+      if (existing) return res.status(400).json({ error: "User is already a manager for this form" });
+
+      const manager = await storage.addFormManager({
+        formId: req.params.id,
+        userId,
+        assignedBy: user.id,
+      });
+
+      const targetUser = await storage.getUser(userId);
+      await logAuditEvent(user.id, "Assigned form manager", "forms", `User: ${targetUser?.username || userId}, Form: ${form.title}`, req.params.id, "application_form");
+
+      res.json({ manager });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add form manager" });
+    }
+  });
+
+  app.delete("/api/forms/:id/managers/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const form = await storage.getApplicationForm(req.params.id);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      if (!(await isUserDepartmentLeadership(user, form.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can remove form managers" });
+      }
+
+      await storage.removeFormManager(req.params.id, req.params.userId);
+
+      const targetUser = await storage.getUser(req.params.userId);
+      await logAuditEvent(user.id, "Removed form manager", "forms", `User: ${targetUser?.username || req.params.userId}, Form: ${form.title}`, req.params.id, "application_form");
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove form manager" });
     }
   });
 
@@ -1450,7 +1549,6 @@ export async function registerRoutes(
     }
     
     // Also check if user's Discord roles match any leadership rank's discordRoleId
-    // (for auto-populated rosters where roster_members table may not have entries)
     if (!isLeadership && req.user?.roles) {
       const deptRanks = await storage.getRanksByDepartment(department);
       const leadershipDiscordRoleIds = deptRanks
@@ -1460,8 +1558,17 @@ export async function registerRoutes(
         isLeadership = true;
       }
     }
+
+    const managedForms = await storage.getFormManagersByUser(req.user!.id);
+    const deptForms = await storage.getApplicationFormsByDepartment(department);
+    const managedFormIds = managedForms.filter(m => deptForms.some(f => f.id === m.formId)).map(m => m.formId);
+    const isFormManager = managedFormIds.length > 0;
+
+    if (!hasAccess && isFormManager) {
+      hasAccess = true;
+    }
     
-    res.json({ hasAccess, department, isLeadership });
+    res.json({ hasAccess, department, isLeadership, isFormManager, managedFormIds });
   });
 
   // ============ WEBSITE ROLES ROUTES ============

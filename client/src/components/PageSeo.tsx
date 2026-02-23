@@ -17,7 +17,7 @@ export function PageSeo({ page }: { page: string }) {
     queryFn: async () => {
       const res = await fetch(`/api/seo/${page}`);
       if (!res.ok) return null;
-      return res.json() as Promise<{ title: string | null; description: string | null }>;
+      return res.json() as Promise<{ title: string | null; description: string | null; faviconUrl: string | null }>;
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -48,6 +48,16 @@ export function PageSeo({ page }: { page: string }) {
 
     const twitterDesc = document.querySelector('meta[name="twitter:description"]');
     if (twitterDesc) twitterDesc.setAttribute("content", description);
+
+    if (data?.faviconUrl) {
+      let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = data.faviconUrl;
+    }
   }, [data, page]);
 
   return null;

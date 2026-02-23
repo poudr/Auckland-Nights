@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link, Redirect, useLocation } from "wouter";
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft, ChevronDown, Check, 
   UserCog, Tag, Cog, Edit, X, ChevronRight, ArrowUp, ArrowDown,
-  LayoutDashboard, Lock, Globe, ClipboardList, Activity, FileText, Eye
+  LayoutDashboard, Lock, Globe, ClipboardList, Activity, FileText, Eye, Upload, Image
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, useAuthStatus, hasPermission, getAvatarUrl } from "@/lib/auth";
@@ -1587,6 +1587,8 @@ function SeoManagementTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [initialized, setInitialized] = useState(false);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const [faviconUploading, setFaviconUploading] = useState(false);
 
   const pages = [
     { key: "home", label: "Home Page", path: "/" },
@@ -1626,6 +1628,39 @@ function SeoManagementTab() {
     toast({ title: "SEO Settings Saved", description: "Page meta information has been updated." });
   };
 
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/png", "image/x-icon", "image/svg+xml", "image/ico", "image/vnd.microsoft.icon"];
+    if (!validTypes.includes(file.type) && !file.name.endsWith(".ico")) {
+      toast({ title: "Invalid File", description: "Please upload a .ico, .png, or .svg file", variant: "destructive" });
+      return;
+    }
+
+    setFaviconUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/uploads/file", { method: "POST", body: formData });
+      if (!response.ok) throw new Error("Upload failed");
+      const data = await response.json();
+
+      await saveSetting("favicon_url", data.objectPath);
+      queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+
+      const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+      if (link) link.href = data.objectPath;
+
+      toast({ title: "Favicon Updated", description: "Your site favicon has been updated." });
+    } catch (err) {
+      toast({ title: "Upload Failed", description: "Could not upload favicon", variant: "destructive" });
+    } finally {
+      setFaviconUploading(false);
+      if (faviconInputRef.current) faviconInputRef.current.value = "";
+    }
+  };
+
   if (isLoading) return <Skeleton className="h-96" />;
 
   return (
@@ -1634,6 +1669,48 @@ function SeoManagementTab() {
         <h2 className="text-2xl font-bold">SEO Management</h2>
         <p className="text-muted-foreground">Customize page titles and descriptions for search engines and social media sharing</p>
       </div>
+
+      <Card className="bg-zinc-900/40 border-white/5" data-testid="seo-favicon-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Image className="w-4 h-4 text-primary" />
+            Favicon
+          </CardTitle>
+          <CardDescription>Upload a custom favicon for your website (.ico, .png, or .svg)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            {savedSettings?.favicon_url && (
+              <div className="w-12 h-12 rounded-lg border border-white/10 bg-zinc-800 flex items-center justify-center overflow-hidden">
+                <img src={savedSettings.favicon_url} alt="Current favicon" className="w-8 h-8 object-contain" data-testid="img-current-favicon" />
+              </div>
+            )}
+            <div className="flex-1">
+              <input
+                type="file"
+                ref={faviconInputRef}
+                onChange={handleFaviconUpload}
+                accept=".ico,.png,.svg"
+                className="hidden"
+                data-testid="input-favicon-upload"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => faviconInputRef.current?.click()}
+                disabled={faviconUploading}
+                data-testid="button-upload-favicon"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {faviconUploading ? "Uploading..." : savedSettings?.favicon_url ? "Change Favicon" : "Upload Favicon"}
+              </Button>
+              {savedSettings?.favicon_url && (
+                <p className="text-xs text-muted-foreground mt-1">Current: {savedSettings.favicon_url}</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {pages.map((page) => (
         <Card key={page.key} className="bg-zinc-900/40 border-white/5" data-testid={`seo-card-${page.key}`}>

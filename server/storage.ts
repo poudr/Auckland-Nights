@@ -22,8 +22,9 @@ import {
   type SupportMessage, type InsertSupportMessage,
   type SupportFaq, type InsertSupportFaq,
   type AuditLog, type InsertAuditLog,
+  type FormManager, type InsertFormManager,
   users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads,
-  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs
+  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs, formManagers
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
@@ -180,6 +181,13 @@ export interface IStorage {
   getAuditLogs(limit?: number, offset?: number): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   getAuditLogCount(): Promise<number>;
+
+  // Form Managers
+  getFormManagers(formId: string): Promise<FormManager[]>;
+  getFormManagersByUser(userId: string): Promise<FormManager[]>;
+  addFormManager(manager: InsertFormManager): Promise<FormManager>;
+  removeFormManager(formId: string, userId: string): Promise<void>;
+  isFormManager(formId: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -753,6 +761,29 @@ export class DatabaseStorage implements IStorage {
   async getAuditLogCount(): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)` }).from(auditLogs);
     return Number(result[0]?.count || 0);
+  }
+
+  // ============ FORM MANAGERS ============
+  async getFormManagers(formId: string): Promise<FormManager[]> {
+    return await db.select().from(formManagers).where(eq(formManagers.formId, formId));
+  }
+
+  async getFormManagersByUser(userId: string): Promise<FormManager[]> {
+    return await db.select().from(formManagers).where(eq(formManagers.userId, userId));
+  }
+
+  async addFormManager(manager: InsertFormManager): Promise<FormManager> {
+    const [created] = await db.insert(formManagers).values(manager).returning();
+    return created;
+  }
+
+  async removeFormManager(formId: string, userId: string): Promise<void> {
+    await db.delete(formManagers).where(and(eq(formManagers.formId, formId), eq(formManagers.userId, userId)));
+  }
+
+  async isFormManager(formId: string, userId: string): Promise<boolean> {
+    const [result] = await db.select().from(formManagers).where(and(eq(formManagers.formId, formId), eq(formManagers.userId, userId)));
+    return !!result;
   }
 }
 
