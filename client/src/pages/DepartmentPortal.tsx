@@ -106,6 +106,8 @@ async function fetchSOPs(code: string): Promise<{ sops: SOP[] }> {
 interface AccessData {
   hasAccess: boolean;
   isLeadership: boolean;
+  isFormManager?: boolean;
+  managedFormIds?: string[];
   department: string;
 }
 
@@ -543,12 +545,12 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
     <div className="space-y-1" data-testid="roster-tab">
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-          style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr 10rem 6rem" : "2.5rem 1fr 10rem" }}
+          style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr auto auto" : "2.5rem 1fr auto" }}
         >
           <div>#</div>
           <div>Member</div>
-          <div className="text-center">Rank</div>
-          {isPolice && <div className="text-center">QID</div>}
+          <div className="text-center px-2">Rank</div>
+          {isPolice && <div className="text-center px-2">QID</div>}
         </div>
 
         {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }, groupIdx) => (
@@ -611,11 +613,11 @@ function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: Roste
 
   const rosterTableHeader = (
     <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-      style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
+      style={{ gridTemplateColumns: "2.5rem 1fr auto" }}
     >
       <div>#</div>
       <div>Member</div>
-      <div className="text-center">Rank</div>
+      <div className="text-center px-2">Rank</div>
     </div>
   );
 
@@ -764,11 +766,11 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
       {leadershipGroups.length > 0 && (
         <div className="rounded-lg border border-white/5 overflow-hidden">
           <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-            style={{ gridTemplateColumns: "2.5rem 1fr 10rem" }}
+            style={{ gridTemplateColumns: "2.5rem 1fr auto" }}
           >
             <div>#</div>
             <div>Member</div>
-            <div className="text-center">Rank</div>
+            <div className="text-center px-2">Rank</div>
           </div>
           {leadershipGroups.map(({ rank, members }) => (
             <div key={rank.id}>
@@ -787,12 +789,12 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
 
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-          style={{ gridTemplateColumns: "1fr 8rem 8rem 5rem" }}
+          style={{ gridTemplateColumns: "1fr auto auto auto" }}
         >
           <div>Name</div>
-          <div className="text-center">ATP</div>
-          <div className="text-center">Callsign</div>
-          <div className="text-center">CSO</div>
+          <div className="text-center px-2">ATP</div>
+          <div className="text-center px-2 hidden sm:block">Callsign</div>
+          <div className="text-center px-2 hidden sm:block">CSO</div>
         </div>
 
         {atpRanks.map(rank => {
@@ -807,42 +809,8 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
               </div>
               {members.map((member) => {
                 if (!member.user) return null;
-                const hasCso = csoRoleId && member.user.roles && member.user.roles.includes(csoRoleId);
                 return (
-                  <div
-                    key={member.id}
-                    className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors"
-                    style={{ gridTemplateColumns: "1fr 8rem 8rem 5rem" }}
-                    data-testid={`roster-row-${member.user.discordId}`}
-                  >
-                    <Link href={`/profile/${member.user.discordId}`} className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity">
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-                        <img src={getAvatarUrl(member.user)} alt={member.user.displayName || member.user.username} className="w-full h-full object-cover" />
-                      </div>
-                      <span className="font-medium text-sm truncate">{member.user.displayName || member.user.username}</span>
-                    </Link>
-                    <div className="text-center">
-                      <span className="text-xs font-medium" style={{ color: deptColor }}>
-                        {rank.abbreviation || rank.name}
-                      </span>
-                    </div>
-                    <div className="text-center">
-                      {member.callsign ? (
-                        <span className="text-xs font-mono font-bold" style={{ color: deptColor }}>{member.callsign}</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </div>
-                    <div className="text-center">
-                      {hasCso ? (
-                        <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-500/20" data-testid={`cso-check-${member.user.discordId}`}>
-                          <Check className="w-3 h-3 text-green-400" />
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </div>
-                  </div>
+                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} />
                 );
               })}
             </div>
@@ -860,41 +828,150 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
   );
 }
 
-function RosterTableRow({ member, deptColor, index, isPolice }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean }) {
+function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMember; rank: Rank; deptColor: string; csoRoleId: string | null }) {
+  const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
+  const hasCso = csoRoleId && member.user.roles && member.user.roles.includes(csoRoleId);
 
   return (
-    <div
-      className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors"
-      style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr 10rem 6rem" : "2.5rem 1fr 10rem" }}
-      data-testid={`roster-row-${member.user.discordId}`}
-    >
-      <div className="text-xs text-muted-foreground font-mono">{index}</div>
-      <Link href={`/profile/${member.user.discordId}`} className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity">
-        <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-          <img
-            src={getAvatarUrl(member.user)}
-            alt={member.user.displayName || member.user.username}
-            className="w-full h-full object-cover"
-          />
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+        style={{ gridTemplateColumns: "1fr auto auto auto" }}
+        onClick={() => setShowCard(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
+        data-testid={`roster-row-${member.user.discordId}`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+            <img src={getAvatarUrl(member.user)} alt={member.user.displayName || member.user.username} className="w-full h-full object-cover" />
+          </div>
+          <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
         </div>
-        <span className="font-medium text-sm truncate">{member.user.displayName || member.user.username}</span>
-      </Link>
-      <div className="text-center">
-        <span className="text-xs font-medium" style={{ color: deptColor }}>
-          {member.rank?.abbreviation || member.rank?.name}
-        </span>
-      </div>
-      {isPolice && (
-        <div className="text-center">
-          {member.qid ? (
-            <span className="text-xs font-mono font-bold" style={{ color: deptColor }}>{member.qid}</span>
+        <div className="text-center px-2 shrink-0">
+          <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
+            {rank.abbreviation || rank.name}
+          </span>
+        </div>
+        <div className="text-center px-2 shrink-0 hidden sm:block">
+          {member.callsign ? (
+            <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
           ) : (
             <span className="text-xs text-muted-foreground">-</span>
           )}
         </div>
-      )}
-    </div>
+        <div className="text-center px-2 shrink-0 hidden sm:block">
+          {hasCso ? (
+            <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-500/20" data-testid={`cso-check-${member.user.discordId}`}>
+              <Check className="w-3 h-3 text-green-400" />
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          )}
+        </div>
+      </div>
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+    </>
+  );
+}
+
+function PlayerCardDialog({ member, deptColor, open, onOpenChange }: { member: RosterMember; deptColor: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  if (!member.user) return null;
+  const displayName = member.user.displayName || member.user.username;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-zinc-900 border-white/10 max-w-sm" data-testid={`player-card-${member.user.discordId}`}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>{displayName}</DialogTitle>
+          <DialogDescription>Player profile card</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col items-center text-center pt-2">
+          <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-800 ring-2 ring-white/10 mb-3">
+            <img src={getAvatarUrl(member.user)} alt={displayName} className="w-full h-full object-cover" />
+          </div>
+          <h3 className="text-lg font-bold">{displayName}</h3>
+          <p className="text-sm text-muted-foreground">@{member.user.username}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Rank</p>
+            <p className="text-sm font-semibold" style={{ color: deptColor }}>{member.rank?.name || "-"}</p>
+          </div>
+          {member.callsign && (
+            <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Callsign</p>
+              <p className="text-sm font-mono font-bold" style={{ color: deptColor }}>{member.callsign}</p>
+            </div>
+          )}
+          {member.qid && (
+            <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">QID</p>
+              <p className="text-sm font-mono font-bold" style={{ color: deptColor }}>{member.qid}</p>
+            </div>
+          )}
+          {member.rank?.abbreviation && (
+            <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Abbreviation</p>
+              <p className="text-sm font-semibold" style={{ color: deptColor }}>{member.rank.abbreviation}</p>
+            </div>
+          )}
+        </div>
+        <Link href={`/profile/${member.user.discordId}`}>
+          <Button className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-black gap-2" data-testid={`button-see-profile-${member.user.discordId}`}>
+            <Users className="w-4 h-4" /> See Player Profile
+          </Button>
+        </Link>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RosterTableRow({ member, deptColor, index, isPolice }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean }) {
+  const [showCard, setShowCard] = useState(false);
+  if (!member.user) return null;
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+        style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr auto auto" : "2.5rem 1fr auto" }}
+        onClick={() => setShowCard(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
+        data-testid={`roster-row-${member.user.discordId}`}
+      >
+        <div className="text-xs text-muted-foreground font-mono">{index}</div>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+            <img
+              src={getAvatarUrl(member.user)}
+              alt={member.user.displayName || member.user.username}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
+        </div>
+        <div className="text-center px-2 shrink-0">
+          <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
+            {member.rank?.abbreviation || member.rank?.name}
+          </span>
+        </div>
+        {isPolice && (
+          <div className="text-center px-2 shrink-0">
+            {member.qid ? (
+              <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.qid}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">-</span>
+            )}
+          </div>
+        )}
+      </div>
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+    </>
   );
 }
 
