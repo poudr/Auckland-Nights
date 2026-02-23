@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link, Redirect } from "wouter";
@@ -11,7 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone } from "lucide-react";
+import { useUpload } from "@/hooks/use-upload";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -1789,10 +1790,54 @@ function FormFiller({ formId, code, user, onBack }: { formId: string; code: stri
   );
 }
 
+function MessageContent({ content }: { content: string }) {
+  const parts = content.split(/(\[attachment:[^\]]*\]\([^)]+\))/g);
+  return (
+    <div className="space-y-1">
+      {parts.map((part, i) => {
+        const match = part.match(/\[attachment:([^\]]*)\]\(([^)]+)\)/);
+        if (match) {
+          const [, fileName, filePath] = match;
+          const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileName);
+          if (isImage) {
+            return (
+              <div key={i} className="mt-1">
+                <a href={filePath} target="_blank" rel="noopener noreferrer">
+                  <img src={filePath} alt={fileName} className="max-w-xs max-h-48 rounded border border-white/10" />
+                </a>
+                <span className="text-[10px] text-muted-foreground">{fileName}</span>
+              </div>
+            );
+          }
+          return (
+            <a key={i} href={filePath} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline text-xs mt-1 bg-zinc-800/40 rounded px-2 py-1.5 w-fit">
+              <Download className="w-3 h-3" />
+              {fileName}
+            </a>
+          );
+        }
+        return part ? <span key={i}>{part}</span> : null;
+      })}
+    </div>
+  );
+}
+
 function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submissionId: string; user: User; isLeadership: boolean; onBack: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
+  const [attachmentPath, setAttachmentPath] = useState<string | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const attachFileRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (response) => {
+      setAttachmentPath(response.objectPath);
+      setAttachmentName(response.metadata.name);
+    },
+    onError: () => {
+      toast({ title: "Failed to upload file", variant: "destructive" });
+    },
+  });
   const [showAcceptPanel, setShowAcceptPanel] = useState(false);
   const [acceptDiscordRoles, setAcceptDiscordRoles] = useState<string[]>([]);
   const [acceptWebsiteRoles, setAcceptWebsiteRoles] = useState<string[]>([]);
@@ -1842,19 +1887,33 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
     }
   }, [data?.form?.rolesOnAccept, rolesInitialized]);
 
+  const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+  };
+
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
+      let content = newMessage;
+      if (attachmentPath) {
+        const attachLine = `[attachment:${attachmentName || "file"}](${attachmentPath})`;
+        content = content ? `${content}\n${attachLine}` : attachLine;
+      }
       const res = await fetch(`/api/submissions/${submissionId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ content: newMessage }),
+        body: JSON.stringify({ content }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: () => {
       setNewMessage("");
+      setAttachmentPath(null);
+      setAttachmentName(null);
+      if (attachFileRef.current) attachFileRef.current.value = "";
       queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
     },
     onError: () => {
@@ -2043,18 +2102,33 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
                     <span className="text-[10px] text-muted-foreground">{new Date(msg.createdAt).toLocaleString()}</span>
                   </div>
                   <div className={`rounded-lg px-3 py-2 text-sm ${isMe ? "bg-primary/20 text-foreground" : "bg-zinc-800/60"}`}>
-                    {msg.content}
+                    <MessageContent content={msg.content} />
                   </div>
                 </div>
               </div>
             );
           })}
 
-          <div className="flex gap-2 pt-4 border-t border-white/5">
-            <Input placeholder="Type a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && newMessage.trim()) sendMessageMutation.mutate(); }} className="flex-1" data-testid="input-message" />
-            <Button onClick={() => sendMessageMutation.mutate()} disabled={!newMessage.trim() || sendMessageMutation.isPending} data-testid="button-send-message">
-              Send
-            </Button>
+          <div className="pt-4 border-t border-white/5 space-y-2">
+            {attachmentPath && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-zinc-800/60 rounded px-3 py-1.5">
+                <Paperclip className="w-3 h-3" />
+                <span className="truncate flex-1">{attachmentName}</span>
+                <button onClick={() => { setAttachmentPath(null); setAttachmentName(null); if (attachFileRef.current) attachFileRef.current.value = ""; }} className="hover:text-foreground">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input ref={attachFileRef} type="file" className="hidden" onChange={handleAttachFile} data-testid="input-attach-file" />
+              <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => attachFileRef.current?.click()} disabled={isUploading} data-testid="button-attach-file">
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+              </Button>
+              <Input placeholder="Type a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (newMessage.trim() || attachmentPath)) sendMessageMutation.mutate(); }} className="flex-1" data-testid="input-message" />
+              <Button onClick={() => sendMessageMutation.mutate()} disabled={(!newMessage.trim() && !attachmentPath) || sendMessageMutation.isPending || isUploading} data-testid="button-send-message">
+                Send
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -3,11 +3,25 @@ import { MessageSquare, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import { useUser, loginWithDiscord } from "@/lib/auth";
 
+async function fetchSetting(key: string): Promise<string | null> {
+  const res = await fetch(`/api/settings/${key}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.value;
+}
+
 export default function Join() {
   const { data: user } = useUser();
+  const { data: discordInvite } = useQuery({ queryKey: ["setting", "discord_invite"], queryFn: () => fetchSetting("discord_invite") });
+  const { data: fivemConnect } = useQuery({ queryKey: ["setting", "fivem_connect"], queryFn: () => fetchSetting("fivem_connect") });
+
+  const discordUrl = discordInvite || "https://discord.gg/tamakimakaurau";
+  const fivemUrl = fivemConnect || "fivem://connect/play.tamakimakaurau.rp";
+  const fivemHost = fivemUrl.replace("fivem://connect/", "");
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,7 +66,7 @@ export default function Join() {
                           data-testid="button-join-discord-external"
                           asChild
                         >
-                          <a href="https://discord.gg/tamakimakaurau" target="_blank" rel="noopener noreferrer">
+                          <a href={discordUrl} target="_blank" rel="noopener noreferrer">
                             <MessageSquare size={18} /> JOIN DISCORD SERVER
                           </a>
                         </Button>
@@ -99,12 +113,12 @@ export default function Join() {
                       </p>
                       <div className="flex flex-wrap gap-4">
                         <Button className="bg-primary text-black gap-2" size="lg" data-testid="button-join-game-direct" asChild>
-                          <a href="fivem://connect/play.tamakimakaurau.rp">
+                          <a href={fivemUrl}>
                             <PlayCircle size={18} /> JOIN GAME SERVER
                           </a>
                         </Button>
                         <Button variant="outline" className="gap-2" data-testid="button-f8-connect">
-                          F8: connect play.tamakimakaurau.rp
+                          F8: connect {fivemHost}
                         </Button>
                       </div>
                     </div>

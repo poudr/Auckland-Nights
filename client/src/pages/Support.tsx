@@ -1106,7 +1106,7 @@ function ApplicationsSection({ user }: { user: any }) {
   );
 }
 
-function DiscordSection() {
+function DiscordSection({ discordUrl }: { discordUrl: string }) {
   return (
     <div className="space-y-6">
       <div>
@@ -1142,7 +1142,7 @@ function DiscordSection() {
                 </div>
               </div>
               <a
-                href="https://discord.gg/tamakimakauraurp"
+                href={discordUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="link-join-discord"
@@ -1189,7 +1189,7 @@ function DiscordSection() {
   );
 }
 
-function ContactSection() {
+function ContactSection({ discordUrl }: { discordUrl: string }) {
   return (
     <div className="space-y-6">
       <div>
@@ -1209,7 +1209,7 @@ function ContactSection() {
             <p className="text-sm text-muted-foreground mb-5">
               Open a support ticket in our Discord server for direct assistance from our staff team. This is the fastest way to get help.
             </p>
-            <a href="https://discord.gg/tamakimakauraurp" target="_blank" rel="noopener noreferrer" data-testid="link-discord-tickets">
+            <a href={discordUrl} target="_blank" rel="noopener noreferrer" data-testid="link-discord-tickets">
               <Button className="gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white">
                 <ExternalLink className="w-4 h-4" /> Open a Ticket
               </Button>
@@ -1265,9 +1265,18 @@ const TAB_CONFIG: { key: SupportTab; label: string; icon: React.ReactNode }[] = 
   { key: "contact", label: "Contact Us", icon: <Send className="w-4 h-4" /> },
 ];
 
+async function fetchSetting(key: string): Promise<string | null> {
+  const res = await fetch(`/api/settings/${key}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.value;
+}
+
 export default function Support() {
   const { data: user, isLoading: userLoading } = useUser();
   const [activeTab, setActiveTab] = useState<SupportTab>("faq");
+  const { data: discordInvite } = useQuery({ queryKey: ["setting", "discord_invite"], queryFn: () => fetchSetting("discord_invite") });
+  const discordUrl = discordInvite || "https://discord.gg/tamakimakauraurp";
 
   const searchParams = new URLSearchParams(window.location.search);
   const deepLinkFormId = searchParams.get("form");
@@ -1336,8 +1345,8 @@ export default function Support() {
             >
               {activeTab === "faq" && <FaqSection user={user} />}
               {activeTab === "applications" && <ApplicationsSection user={user} />}
-              {activeTab === "discord" && <DiscordSection />}
-              {activeTab === "contact" && <ContactSection />}
+              {activeTab === "discord" && <DiscordSection discordUrl={discordUrl} />}
+              {activeTab === "contact" && <ContactSection discordUrl={discordUrl} />}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hasPermission } from "./auth";
 import { seedDatabase } from "./seed";
 import { STAFF_HIERARCHY } from "@shared/schema";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 function generateNextQid(existingQids: Set<string>): string {
   for (let num = 1; num <= 99; num++) {
@@ -48,6 +49,9 @@ export async function registerRoutes(
 
   // Seed database on startup
   await seedDatabase();
+
+  // Register object storage routes for file uploads
+  registerObjectStorageRoutes(app);
 
   // Check if Discord OAuth is configured
   const discordConfigured = !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET);

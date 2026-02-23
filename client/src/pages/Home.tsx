@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight, Megaphone, Plus, Trash2, Calendar, ImageIcon, X } from "lucide-react";
+import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight, Megaphone, Plus, Trash2, Calendar, ImageIcon, X, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useUpload } from "@/hooks/use-upload";
 import Navbar from "@/components/Navbar";
 import { useUser, loginWithDiscord } from "@/lib/auth";
 import heroImg from "@/assets/hero-auckland.png";
@@ -40,7 +41,18 @@ function ServerUpdatesSection({ user }: { user: any }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newImageUrl, setNewImageUrl] = useState("");
+  const [uploadedImagePath, setUploadedImagePath] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (response) => {
+      setUploadedImagePath(response.objectPath);
+      toast({ title: "Image uploaded" });
+    },
+    onError: () => {
+      toast({ title: "Failed to upload image", variant: "destructive" });
+    },
+  });
 
   const canPost = user?.staffTier && ["manager", "executive", "director"].includes(user.staffTier);
 
@@ -53,13 +65,22 @@ function ServerUpdatesSection({ user }: { user: any }) {
     },
   });
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    await uploadFile(file);
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/server-updates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ title: newTitle, description: newDescription, imageUrl: newImageUrl || null }),
+        body: JSON.stringify({ title: newTitle, description: newDescription, imageUrl: uploadedImagePath }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -69,7 +90,8 @@ function ServerUpdatesSection({ user }: { user: any }) {
       setShowCreateDialog(false);
       setNewTitle("");
       setNewDescription("");
-      setNewImageUrl("");
+      setUploadedImagePath(null);
+      setImagePreview(null);
       queryClient.invalidateQueries({ queryKey: ["server-updates"] });
     },
     onError: () => {
@@ -135,10 +157,41 @@ function ServerUpdatesSection({ user }: { user: any }) {
                   />
                 </div>
                 <div>
-                  <Label>Image URL (optional)</Label>
-                  <Input value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://..." data-testid="input-update-image" />
+                  <Label>Image (optional)</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                    data-testid="input-update-image-file"
+                  />
+                  {imagePreview ? (
+                    <div className="relative mt-2">
+                      <img src={imagePreview} alt="Preview" className="w-full h-40 object-cover rounded-md border border-white/10" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white h-7 w-7"
+                        onClick={() => { setImagePreview(null); setUploadedImagePath(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full mt-1 gap-2 border-dashed border-white/20 text-muted-foreground"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      data-testid="button-upload-image"
+                    >
+                      {isUploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</> : <><Upload className="w-4 h-4" /> Upload Image</>}
+                    </Button>
+                  )}
                 </div>
-                <Button onClick={() => createMutation.mutate()} disabled={!newTitle || !newDescription || createMutation.isPending} className="w-full" data-testid="button-submit-update">
+                <Button onClick={() => createMutation.mutate()} disabled={!newTitle || !newDescription || createMutation.isPending || isUploading} className="w-full" data-testid="button-submit-update">
                   {createMutation.isPending ? "Posting..." : "Post Update"}
                 </Button>
               </div>
