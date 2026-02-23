@@ -852,7 +852,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {rank.abbreviation || rank.name}
+            {rank.name}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -912,12 +912,6 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange }: { member: R
               <p className="text-sm font-mono font-bold" style={{ color: deptColor }}>{member.qid}</p>
             </div>
           )}
-          {member.rank?.abbreviation && (
-            <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Abbreviation</p>
-              <p className="text-sm font-semibold" style={{ color: deptColor }}>{member.rank.abbreviation}</p>
-            </div>
-          )}
         </div>
         <Link href={`/profile/${member.user.discordId}`}>
           <Button className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-black gap-2" data-testid={`button-see-profile-${member.user.discordId}`}>
@@ -957,7 +951,7 @@ function RosterTableRow({ member, deptColor, index, isPolice }: { member: Roster
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {member.rank?.abbreviation || member.rank?.name}
+            {member.rank?.name}
           </span>
         </div>
         {isPolice && (
