@@ -67,9 +67,11 @@ export function setupAuth(app: Express) {
 
   // Only set up Discord strategy if credentials are available
   if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
-    // Use REPLIT_DEPLOYMENT_URL for production, or construct from REPLIT_DEV_DOMAIN for dev
     let callbackURL: string;
-    if (process.env.REPLIT_DEPLOYMENT_URL) {
+    if (process.env.APP_URL) {
+      const base = process.env.APP_URL.replace(/\/$/, "");
+      callbackURL = `${base}/api/auth/discord/callback`;
+    } else if (process.env.REPLIT_DEPLOYMENT_URL) {
       callbackURL = `${process.env.REPLIT_DEPLOYMENT_URL}/api/auth/discord/callback`;
     } else if (process.env.REPLIT_DEV_DOMAIN) {
       callbackURL = `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/discord/callback`;
