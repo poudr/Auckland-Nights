@@ -437,6 +437,25 @@ export const insertSupportFaqSchema = createInsertSchema(supportFaqs).omit({
 export type InsertSupportFaq = z.infer<typeof insertSupportFaqSchema>;
 export type SupportFaq = typeof supportFaqs.$inferSelect;
 
+// ============ AUDIT LOG ============
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  action: text("action").notNull(),
+  category: text("category").notNull(),
+  details: text("details"),
+  targetId: varchar("target_id"),
+  targetType: text("target_type"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+
 // ============ STAFF HIERARCHY (for Meet the Team) ============
 export const STAFF_HIERARCHY = [
   "director",

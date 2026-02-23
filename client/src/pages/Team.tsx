@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
+import { PageSeo } from "@/components/PageSeo";
 import { getAvatarUrl } from "@/lib/auth";
 
 interface TeamMember {
@@ -57,6 +58,7 @@ export default function Team() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageSeo page="team" />
       <Navbar />
       
       <div className="pt-24 px-6 pb-12">

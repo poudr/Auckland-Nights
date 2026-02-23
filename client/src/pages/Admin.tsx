@@ -16,7 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft, ChevronDown, Check, 
-  UserCog, Tag, Cog, Edit, X, ChevronRight
+  UserCog, Tag, Cog, Edit, X, ChevronRight, ArrowUp, ArrowDown,
+  LayoutDashboard, Lock, Globe, ClipboardList, Activity, FileText, Eye
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, useAuthStatus, hasPermission, getAvatarUrl } from "@/lib/auth";
@@ -64,9 +65,13 @@ interface AdminUser {
 }
 
 const SIDEBAR_ITEMS = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "users", label: "Users Overview", icon: Users },
   { id: "players", label: "Player Management", icon: UserCog },
   { id: "roles", label: "Role Management", icon: Tag },
+  { id: "access", label: "Access Control", icon: Lock },
+  { id: "seo", label: "SEO Management", icon: Globe },
+  { id: "audit", label: "Audit Log", icon: ClipboardList },
   { id: "settings", label: "Settings", icon: Cog },
 ];
 
@@ -219,7 +224,7 @@ async function updateDepartmentRank(deptCode: string, rankId: string, data: Part
 
 export default function Admin() {
   const [, params] = useRoute("/admin/:tab?");
-  const activeTab = params?.tab || "users";
+  const activeTab = params?.tab || "dashboard";
   const [, setLocation] = useLocation();
   
   const { data: user, isLoading: userLoading } = useUser();
@@ -290,9 +295,13 @@ export default function Admin() {
 
         <main className="flex-1 ml-64 p-8">
           <div className="max-w-5xl">
+            {activeTab === "dashboard" && <DashboardTab />}
             {activeTab === "users" && <UsersOverviewTab />}
             {activeTab === "players" && <PlayerManagementTab />}
             {activeTab === "roles" && <RoleManagementTab />}
+            {activeTab === "access" && <AccessControlTab />}
+            {activeTab === "seo" && <SeoManagementTab />}
+            {activeTab === "audit" && <AuditLogTab />}
             {activeTab === "settings" && <SettingsTab />}
           </div>
         </main>
@@ -1088,6 +1097,25 @@ function DepartmentRolesSection() {
     },
   });
 
+  const reorderRankMutation = useMutation({
+    mutationFn: async ({ deptCode, rankId, direction, ranks }: { deptCode: string; rankId: string; direction: "up" | "down"; ranks: DepartmentRank[] }) => {
+      const sortedRanks = [...ranks].sort((a, b) => a.priority - b.priority);
+      const currentIndex = sortedRanks.findIndex(r => r.id === rankId);
+      const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (swapIndex < 0 || swapIndex >= sortedRanks.length) return;
+
+      const currentPriority = sortedRanks[currentIndex].priority;
+      const swapPriority = sortedRanks[swapIndex].priority;
+
+      await updateDepartmentRank(deptCode, sortedRanks[currentIndex].id, { priority: swapPriority });
+      await updateDepartmentRank(deptCode, sortedRanks[swapIndex].id, { priority: currentPriority });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminDepartmentRanks"] });
+      queryClient.invalidateQueries({ queryKey: ["departmentRanks"] });
+    },
+  });
+
   const toggleDept = (code: string) => {
     setExpandedDepts(prev => {
       const next = new Set(prev);
@@ -1146,12 +1174,16 @@ function DepartmentRolesSection() {
                     <div className="w-48 text-center">Discord Role ID</div>
                     <div className="w-20" />
                   </div>
-                  {ranks.sort((a, b) => a.priority - b.priority).map(rank => (
+                  {ranks.sort((a, b) => a.priority - b.priority).map((rank, idx) => (
                     <AdminRankRow
                       key={rank.id}
                       rank={rank}
                       deptColor={department.color}
                       onUpdate={(data) => updateRankMutation.mutate({ deptCode: code, rankId: rank.id, data })}
+                      onMoveUp={() => reorderRankMutation.mutate({ deptCode: code, rankId: rank.id, direction: "up", ranks })}
+                      onMoveDown={() => reorderRankMutation.mutate({ deptCode: code, rankId: rank.id, direction: "down", ranks })}
+                      isFirst={idx === 0}
+                      isLast={idx === ranks.length - 1}
                     />
                   ))}
                 </div>
@@ -1164,45 +1196,113 @@ function DepartmentRolesSection() {
   );
 }
 
-function AdminRankRow({ rank, deptColor, onUpdate }: { rank: DepartmentRank; deptColor: string; onUpdate: (data: Partial<DepartmentRank>) => void }) {
+function AdminRankRow({ rank, deptColor, onUpdate, onMoveUp, onMoveDown, isFirst, isLast }: { 
+  rank: DepartmentRank; deptColor: string; 
+  onUpdate: (data: Partial<DepartmentRank>) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
   const [editing, setEditing] = useState(false);
-  const [discordRoleId, setDiscordRoleId] = useState(rank.discordRoleId || "");
+  const [editData, setEditData] = useState({
+    name: rank.name,
+    abbreviation: rank.abbreviation || "",
+    callsignPrefix: rank.callsignPrefix || "",
+    isLeadership: rank.isLeadership ?? false,
+    discordRoleId: rank.discordRoleId || "",
+  });
 
   if (editing) {
     return (
-      <div className="flex items-center gap-4 px-4 py-3 bg-zinc-900/50 border-b border-white/5">
-        <div className="w-8 text-muted-foreground font-mono text-sm">{rank.priority}</div>
-        <div className="flex-1 font-medium text-sm">{rank.name}</div>
-        <div className="w-48">
-          <Input
-            placeholder="Discord Role ID"
-            value={discordRoleId}
-            onChange={(e) => setDiscordRoleId(e.target.value)}
-            className="h-8 text-sm"
-            data-testid={`input-admin-rank-discord-id-${rank.id}`}
-            autoFocus
-          />
+      <div className="px-4 py-3 bg-zinc-900/50 border-b border-white/5 space-y-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <div>
+            <Label className="text-xs">Name</Label>
+            <Input
+              placeholder="Rank Name"
+              value={editData.name}
+              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+              className="h-7 text-sm"
+              data-testid={`input-admin-rank-name-${rank.id}`}
+              autoFocus
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Abbreviation</Label>
+            <Input
+              placeholder="ABBR"
+              value={editData.abbreviation}
+              onChange={(e) => setEditData({ ...editData, abbreviation: e.target.value })}
+              className="h-7 text-sm"
+              data-testid={`input-admin-rank-abbrev-${rank.id}`}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Callsign Prefix</Label>
+            <Input
+              placeholder="1-"
+              value={editData.callsignPrefix}
+              onChange={(e) => setEditData({ ...editData, callsignPrefix: e.target.value })}
+              className="h-7 text-sm"
+              data-testid={`input-admin-rank-prefix-${rank.id}`}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Discord Role ID</Label>
+            <Input
+              placeholder="Discord Role ID"
+              value={editData.discordRoleId}
+              onChange={(e) => setEditData({ ...editData, discordRoleId: e.target.value })}
+              className="h-7 text-sm"
+              data-testid={`input-admin-rank-discord-id-${rank.id}`}
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-4">
+            <Checkbox
+              checked={editData.isLeadership}
+              onCheckedChange={(checked) => setEditData({ ...editData, isLeadership: checked as boolean })}
+              id={`admin-edit-leadership-${rank.id}`}
+            />
+            <Label htmlFor={`admin-edit-leadership-${rank.id}`} className="text-xs">Leadership</Label>
+          </div>
         </div>
-        <div className="w-20 flex gap-1">
+        <div className="flex gap-1">
           <Button
             size="sm"
             className="h-7 px-2 text-xs"
             onClick={() => {
-              onUpdate({ discordRoleId: discordRoleId || null });
+              onUpdate({
+                name: editData.name,
+                abbreviation: editData.abbreviation || null,
+                callsignPrefix: editData.callsignPrefix || null,
+                isLeadership: editData.isLeadership,
+                discordRoleId: editData.discordRoleId || null,
+              });
               setEditing(false);
             }}
+            disabled={!editData.name}
             data-testid={`button-save-admin-rank-${rank.id}`}
           >
-            <Check className="w-3 h-3" />
+            <Check className="w-3 h-3 mr-1" /> Save
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="h-7 px-2 text-xs"
-            onClick={() => { setEditing(false); setDiscordRoleId(rank.discordRoleId || ""); }}
+            onClick={() => {
+              setEditing(false);
+              setEditData({
+                name: rank.name,
+                abbreviation: rank.abbreviation || "",
+                callsignPrefix: rank.callsignPrefix || "",
+                isLeadership: rank.isLeadership ?? false,
+                discordRoleId: rank.discordRoleId || "",
+              });
+            }}
             data-testid={`button-cancel-admin-rank-${rank.id}`}
           >
-            <X className="w-3 h-3" />
+            <X className="w-3 h-3 mr-1" /> Cancel
           </Button>
         </div>
       </div>
@@ -1227,7 +1327,13 @@ function AdminRankRow({ rank, deptColor, onUpdate }: { rank: DepartmentRank; dep
           <span className="text-red-400/60">Not linked</span>
         )}
       </div>
-      <div className="w-20">
+      <div className="flex gap-1">
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onMoveUp} disabled={isFirst} data-testid={`button-move-up-admin-rank-${rank.id}`}>
+          <ArrowUp className="w-3 h-3" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onMoveDown} disabled={isLast} data-testid={`button-move-down-admin-rank-${rank.id}`}>
+          <ArrowDown className="w-3 h-3" />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -1238,6 +1344,386 @@ function AdminRankRow({ rank, deptColor, onUpdate }: { rank: DepartmentRank; dep
           <Edit className="w-3 h-3 mr-1" /> Edit
         </Button>
       </div>
+    </div>
+  );
+}
+
+function DashboardTab() {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["adminDashboardStats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/dashboard-stats", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-96" />;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold">Dashboard</h2>
+        <p className="text-muted-foreground">Server overview and quick statistics</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Users</p>
+                <p className="text-3xl font-bold text-primary">{stats?.totalUsers || 0}</p>
+              </div>
+              <Users className="w-8 h-8 text-primary/40" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Staff Members</p>
+                <p className="text-3xl font-bold text-green-400">{stats?.staffCount || 0}</p>
+              </div>
+              <Shield className="w-8 h-8 text-green-400/40" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Departments</p>
+                <p className="text-3xl font-bold text-blue-400">{stats?.departmentCount || 0}</p>
+              </div>
+              <Activity className="w-8 h-8 text-blue-400/40" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Recent Actions</p>
+                <p className="text-3xl font-bold text-purple-400">{stats?.recentActivity?.length || 0}</p>
+              </div>
+              <ClipboardList className="w-8 h-8 text-purple-400/40" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {stats?.recentActivity?.length > 0 && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats.recentActivity.map((log: any) => (
+                <div key={log.id} className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/30" data-testid={`activity-${log.id}`}>
+                  <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{log.action}</p>
+                    <p className="text-xs text-muted-foreground">{log.category} {log.details ? `· ${log.details}` : ""}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{new Date(log.createdAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+const ACCESS_CONTROL_PERMISSIONS = [
+  { key: "access_view_applications", label: "View Applications", description: "Who can view submitted applications in department portals", defaultTier: "manager" },
+  { key: "access_manage_sops", label: "Manage SOPs", description: "Who can upload and manage Standard Operating Procedures", defaultTier: "manager" },
+  { key: "access_post_updates", label: "Post Server Updates", description: "Who can create server updates on the home page", defaultTier: "manager" },
+  { key: "access_manage_roster", label: "Manage Roster", description: "Who can add/remove members from department rosters", defaultTier: "manager" },
+  { key: "access_manage_forms", label: "Manage Application Forms", description: "Who can create and edit application forms", defaultTier: "executive" },
+  { key: "access_accept_applications", label: "Accept/Deny Applications", description: "Who can accept or deny submitted applications", defaultTier: "manager" },
+  { key: "access_manage_faqs", label: "Manage FAQs", description: "Who can create and edit FAQ entries", defaultTier: "executive" },
+  { key: "access_manage_ranks", label: "Manage Department Ranks", description: "Who can edit rank names, priorities, and Discord IDs", defaultTier: "executive" },
+];
+
+function AccessControlTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [localSettings, setLocalSettings] = useState<Record<string, string>>({});
+  const [initialized, setInitialized] = useState(false);
+
+  const { data: savedSettings, isLoading } = useQuery({
+    queryKey: ["adminSettings"],
+    queryFn: fetchAdminSettings,
+  });
+
+  useEffect(() => {
+    if (savedSettings && !initialized) {
+      const settings: Record<string, string> = {};
+      for (const perm of ACCESS_CONTROL_PERMISSIONS) {
+        settings[perm.key] = savedSettings[perm.key] || perm.defaultTier;
+      }
+      setLocalSettings(settings);
+      setInitialized(true);
+    }
+  }, [savedSettings, initialized]);
+
+  const handleSave = async () => {
+    for (const [key, value] of Object.entries(localSettings)) {
+      await saveSetting(key, value);
+    }
+    queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+    toast({ title: "Access Control Saved", description: "Permission settings have been updated." });
+  };
+
+  if (isLoading) return <Skeleton className="h-96" />;
+
+  const tiers = ["director", "executive", "manager", "administrator", "moderator", "support"];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Access Control</h2>
+        <p className="text-muted-foreground">Configure the minimum staff tier required for each action. Directors and Executives always have full access.</p>
+      </div>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardContent className="pt-6 space-y-1">
+          {ACCESS_CONTROL_PERMISSIONS.map((perm) => (
+            <div key={perm.key} className="flex items-center justify-between p-4 rounded-lg hover:bg-zinc-800/30 transition-colors" data-testid={`access-control-${perm.key}`}>
+              <div className="flex-1">
+                <p className="font-medium text-sm">{perm.label}</p>
+                <p className="text-xs text-muted-foreground">{perm.description}</p>
+              </div>
+              <select
+                value={localSettings[perm.key] || perm.defaultTier}
+                onChange={(e) => setLocalSettings(prev => ({ ...prev, [perm.key]: e.target.value }))}
+                className="bg-zinc-800 border border-white/10 rounded-md px-3 py-1.5 text-sm text-foreground"
+                data-testid={`select-access-${perm.key}`}
+              >
+                {tiers.map((tier) => (
+                  <option key={tier} value={tier}>{tier.charAt(0).toUpperCase() + tier.slice(1)}+</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Button onClick={handleSave} data-testid="button-save-access-control">
+        <Check className="w-4 h-4 mr-2" /> Save Access Control Settings
+      </Button>
+    </div>
+  );
+}
+
+function SeoManagementTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [initialized, setInitialized] = useState(false);
+
+  const pages = [
+    { key: "home", label: "Home Page", path: "/" },
+    { key: "team", label: "Team Page", path: "/team" },
+    { key: "join", label: "Join Page", path: "/join" },
+    { key: "support", label: "Support Page", path: "/support" },
+    { key: "departments", label: "Departments Page", path: "/departments" },
+  ];
+
+  const { data: savedSettings, isLoading } = useQuery({
+    queryKey: ["adminSettings"],
+    queryFn: fetchAdminSettings,
+  });
+
+  const [seoSettings, setSeoSettings] = useState<Record<string, { title: string; description: string }>>({});
+
+  useEffect(() => {
+    if (savedSettings && !initialized) {
+      const settings: Record<string, { title: string; description: string }> = {};
+      for (const page of pages) {
+        settings[page.key] = {
+          title: savedSettings[`seo_${page.key}_title`] || "",
+          description: savedSettings[`seo_${page.key}_description`] || "",
+        };
+      }
+      setSeoSettings(settings);
+      setInitialized(true);
+    }
+  }, [savedSettings, initialized]);
+
+  const handleSave = async () => {
+    for (const [key, values] of Object.entries(seoSettings)) {
+      await saveSetting(`seo_${key}_title`, values.title);
+      await saveSetting(`seo_${key}_description`, values.description);
+    }
+    queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+    toast({ title: "SEO Settings Saved", description: "Page meta information has been updated." });
+  };
+
+  if (isLoading) return <Skeleton className="h-96" />;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">SEO Management</h2>
+        <p className="text-muted-foreground">Customize page titles and descriptions for search engines and social media sharing</p>
+      </div>
+
+      {pages.map((page) => (
+        <Card key={page.key} className="bg-zinc-900/40 border-white/5" data-testid={`seo-card-${page.key}`}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="w-4 h-4 text-primary" />
+              {page.label}
+              <Badge variant="outline" className="text-xs font-mono">{page.path}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <Label className="text-xs">Page Title</Label>
+              <Input
+                placeholder={`${page.label} | Tamaki Makaurau RP`}
+                value={seoSettings[page.key]?.title || ""}
+                onChange={(e) => setSeoSettings(prev => ({
+                  ...prev,
+                  [page.key]: { ...prev[page.key], title: e.target.value },
+                }))}
+                data-testid={`input-seo-title-${page.key}`}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Meta Description</Label>
+              <Textarea
+                placeholder="Brief description for search engine results..."
+                value={seoSettings[page.key]?.description || ""}
+                onChange={(e) => setSeoSettings(prev => ({
+                  ...prev,
+                  [page.key]: { ...prev[page.key], description: e.target.value },
+                }))}
+                rows={2}
+                data-testid={`input-seo-description-${page.key}`}
+              />
+            </div>
+            {seoSettings[page.key]?.title && (
+              <div className="p-3 rounded-lg bg-zinc-800/40 border border-white/5">
+                <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                <p className="text-blue-400 text-sm font-medium">{seoSettings[page.key].title}</p>
+                <p className="text-xs text-green-400 font-mono">{page.path}</p>
+                <p className="text-xs text-muted-foreground mt-1">{seoSettings[page.key].description || "No description set"}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
+      <Button onClick={handleSave} data-testid="button-save-seo">
+        <Check className="w-4 h-4 mr-2" /> Save SEO Settings
+      </Button>
+    </div>
+  );
+}
+
+function AuditLogTab() {
+  const [page, setPage] = useState(0);
+  const limit = 20;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["auditLogs", page],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/audit-logs?limit=${limit}&offset=${page * limit}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ logs: any[]; total: number; users: Record<string, any> }>;
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-96" />;
+
+  const logs = data?.logs || [];
+  const total = data?.total || 0;
+  const users = data?.users || {};
+  const totalPages = Math.ceil(total / limit);
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case "roles": return "text-blue-400";
+      case "settings": return "text-yellow-400";
+      case "users": return "text-green-400";
+      case "sync": return "text-purple-400";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Audit Log</h2>
+        <p className="text-muted-foreground">Track all administrative actions performed on the server ({total} total entries)</p>
+      </div>
+
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardContent className="pt-6">
+          {logs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <ClipboardList className="w-12 h-12 mx-auto mb-4 opacity-40" />
+              <p>No audit log entries yet.</p>
+              <p className="text-sm">Actions will be recorded as admins make changes.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {logs.map((log) => {
+                const user = log.userId ? users[log.userId] : null;
+                return (
+                  <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-800/20 hover:bg-zinc-800/40 transition-colors" data-testid={`audit-log-${log.id}`}>
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0 mt-0.5">
+                      {user ? (
+                        <img src={getAvatarUrl({ discordId: user.discordId, avatar: user.avatar })} alt={user.displayName || user.username} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                          <Settings className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{user ? (user.displayName || user.username) : "System"}</span>
+                        <Badge variant="outline" className={`text-[10px] py-0 ${getCategoryColor(log.category)}`}>
+                          {log.category}
+                        </Badge>
+                      </div>
+                      <p className="text-sm">{log.action}</p>
+                      {log.details && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0 mt-1">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/5">
+              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} data-testid="button-audit-prev">
+                <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</span>
+              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} data-testid="button-audit-next">
+                Next <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

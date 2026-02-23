@@ -44,6 +44,14 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  async function logAuditEvent(userId: string | null, action: string, category: string, details?: string, targetId?: string, targetType?: string) {
+    try {
+      await storage.createAuditLog({ userId, action, category, details, targetId, targetType });
+    } catch (e) {
+      console.error("Failed to log audit event:", e);
+    }
+  }
+
   // Setup authentication
   setupAuth(app);
 
@@ -55,6 +63,17 @@ export async function registerRoutes(
 
   // Check if Discord OAuth is configured
   const discordConfigured = !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET);
+
+  // ============ SEO ROUTES ============
+  app.get("/api/seo/:page", async (req, res) => {
+    const page = req.params.page;
+    const titleSetting = await storage.getAdminSetting(`seo_${page}_title`);
+    const descSetting = await storage.getAdminSetting(`seo_${page}_description`);
+    res.json({
+      title: titleSetting?.value || null,
+      description: descSetting?.value || null,
+    });
+  });
 
   // ============ AUTH ROUTES ============
   app.get("/api/auth/discord", (req, res, next) => {
@@ -642,6 +661,43 @@ export async function registerRoutes(
     }
   });
 
+  // ============ APPLICATION QUESTION REORDER ============
+  app.post("/api/forms/:formId/questions/reorder", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const formId = req.params.formId;
+      const { questionId, direction } = req.body;
+
+      const form = await storage.getApplicationForm(formId);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      if (!(await isUserDepartmentLeadership(user, form.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can reorder questions" });
+      }
+
+      const questions = await storage.getQuestionsByForm(formId);
+      const sortedQuestions = [...questions].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+      const currentIndex = sortedQuestions.findIndex(q => q.id === questionId);
+      if (currentIndex === -1) return res.status(404).json({ error: "Question not found" });
+
+      const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (swapIndex < 0 || swapIndex >= sortedQuestions.length) {
+        return res.status(400).json({ error: "Cannot move question further in that direction" });
+      }
+
+      const currentPriority = sortedQuestions[currentIndex].priority ?? currentIndex;
+      const swapPriority = sortedQuestions[swapIndex].priority ?? swapIndex;
+      await storage.updateApplicationQuestion(sortedQuestions[currentIndex].id, { priority: swapPriority });
+      await storage.updateApplicationQuestion(sortedQuestions[swapIndex].id, { priority: currentPriority });
+
+      const updatedQuestions = await storage.getQuestionsByForm(formId);
+      res.json({ questions: updatedQuestions });
+    } catch (error) {
+      console.error("Reorder questions error:", error);
+      res.status(500).json({ error: "Failed to reorder questions" });
+    }
+  });
+
   // ============ APPLICATION SUBMISSION ROUTES ============
 
   app.get("/api/departments/:code/submissions", isAuthenticated, async (req, res) => {
@@ -1077,6 +1133,7 @@ export async function registerRoutes(
   app.post("/api/admin/role-mappings", isAuthenticated, hasPermission("admin"), async (req, res) => {
     try {
       const mapping = await storage.createRoleMapping(req.body);
+      await logAuditEvent(req.user!.id, "Created role mapping", "roles", `Discord: ${req.body.discordRoleId}`, mapping.id, "role_mapping");
       res.json({ mapping });
     } catch (error) {
       res.status(500).json({ error: "Failed to create role mapping" });
@@ -1087,6 +1144,7 @@ export async function registerRoutes(
     try {
       const id = req.params.id as string;
       await storage.deleteRoleMapping(id);
+      await logAuditEvent(req.user!.id, "Deleted role mapping", "roles", undefined, id, "role_mapping");
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete role mapping" });
@@ -1113,6 +1171,7 @@ export async function registerRoutes(
         ...req.body,
         updatedBy: req.user!.id,
       });
+      await logAuditEvent(req.user!.id, "Updated admin setting", "settings", `Key: ${req.body.key}`, setting.id, "admin_setting");
       res.json({ setting });
     } catch (error) {
       res.status(500).json({ error: "Failed to save setting" });
@@ -1219,10 +1278,42 @@ export async function registerRoutes(
         }
       }
 
+      await logAuditEvent(req.user!.id, "Bulk role sync", "roles", `Synced: ${synced}, Failed: ${failed}, Total: ${users.length}`);
       res.json({ synced, failed, total: users.length });
     } catch (error) {
       res.status(500).json({ error: "Failed to sync roles" });
     }
+  });
+
+  app.get("/api/admin/audit-logs", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+    const [logs, total] = await Promise.all([
+      storage.getAuditLogs(limit, offset),
+      storage.getAuditLogCount(),
+    ]);
+    const userIds = [...new Set(logs.filter(l => l.userId).map(l => l.userId!))];
+    const usersMap: Record<string, any> = {};
+    for (const uid of userIds) {
+      const user = await storage.getUser(uid);
+      if (user) usersMap[uid] = { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId };
+    }
+    res.json({ logs, total, users: usersMap });
+  });
+
+  app.get("/api/admin/dashboard-stats", isAuthenticated, hasPermission("admin"), async (req, res) => {
+    const [users, departments, recentLogs] = await Promise.all([
+      storage.getAllUsers(),
+      storage.getDepartments(),
+      storage.getAuditLogs(5, 0),
+    ]);
+    const staffCount = users.filter(u => u.isStaff).length;
+    res.json({
+      totalUsers: users.length,
+      staffCount,
+      departmentCount: departments.length,
+      recentActivity: recentLogs,
+    });
   });
 
   // ============ MENU ROUTES ============
@@ -1329,6 +1420,7 @@ export async function registerRoutes(
   app.post("/api/admin/website-roles", isAuthenticated, hasPermission("admin"), async (req, res) => {
     try {
       const role = await storage.createWebsiteRole(req.body);
+      await logAuditEvent(req.user!.id, "Created website role", "roles", `Role: ${req.body.name}`, role.id, "website_role");
       res.json({ role });
     } catch (error) {
       res.status(500).json({ error: "Failed to create website role" });
@@ -1338,6 +1430,7 @@ export async function registerRoutes(
   app.put("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
     try {
       const role = await storage.updateWebsiteRole(req.params.id as string, req.body);
+      await logAuditEvent(req.user!.id, "Updated website role", "roles", `Role: ${req.body.name || req.params.id}`, req.params.id as string, "website_role");
       res.json({ role });
     } catch (error) {
       res.status(500).json({ error: "Failed to update website role" });
@@ -1347,6 +1440,7 @@ export async function registerRoutes(
   app.delete("/api/admin/website-roles/:id", isAuthenticated, hasPermission("admin"), async (req, res) => {
     try {
       await storage.deleteWebsiteRole(req.params.id as string);
+      await logAuditEvent(req.user!.id, "Deleted website role", "roles", undefined, req.params.id as string, "website_role");
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete website role" });
@@ -1395,6 +1489,7 @@ export async function registerRoutes(
       }
       const updated = await storage.updateUser(user.discordId, req.body);
       if (updated) {
+        await logAuditEvent(req.user!.id, "Updated user", "users", `User: ${updated.username}`, updated.id, "user");
         const { accessToken, refreshToken, ...safeUser } = updated;
         res.json({ user: safeUser });
       } else {
@@ -1775,6 +1870,44 @@ export async function registerRoutes(
       res.json({ questions: result });
     } catch (error) {
       res.status(500).json({ error: "Failed to update questions" });
+    }
+  });
+
+  // ============ SUPPORT QUESTION REORDER ============
+  app.post("/api/support/forms/:formId/questions/reorder", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only directors, executives, or managers can reorder questions" });
+      }
+
+      const formId = req.params.formId;
+      const { questionId, direction } = req.body;
+
+      const form = await storage.getSupportForm(formId);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      const questions = await storage.getSupportQuestionsByForm(formId);
+      const sortedQuestions = [...questions].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+      const currentIndex = sortedQuestions.findIndex(q => q.id === questionId);
+      if (currentIndex === -1) return res.status(404).json({ error: "Question not found" });
+
+      const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (swapIndex < 0 || swapIndex >= sortedQuestions.length) {
+        return res.status(400).json({ error: "Cannot move question further in that direction" });
+      }
+
+      const currentPriority = sortedQuestions[currentIndex].priority ?? currentIndex;
+      const swapPriority = sortedQuestions[swapIndex].priority ?? swapIndex;
+      await storage.updateSupportQuestion(sortedQuestions[currentIndex].id, { priority: swapPriority });
+      await storage.updateSupportQuestion(sortedQuestions[swapIndex].id, { priority: currentPriority });
+
+      const updatedQuestions = await storage.getSupportQuestionsByForm(formId);
+      res.json({ questions: updatedQuestions });
+    } catch (error) {
+      console.error("Reorder support questions error:", error);
+      res.status(500).json({ error: "Failed to reorder questions" });
     }
   });
 

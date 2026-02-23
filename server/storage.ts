@@ -21,11 +21,12 @@ import {
   type SupportSubmission, type InsertSupportSubmission,
   type SupportMessage, type InsertSupportMessage,
   type SupportFaq, type InsertSupportFaq,
+  type AuditLog, type InsertAuditLog,
   users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads,
-  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs
+  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -174,6 +175,11 @@ export interface IStorage {
   createSupportFaq(faq: InsertSupportFaq): Promise<SupportFaq>;
   updateSupportFaq(id: string, updates: Partial<InsertSupportFaq>): Promise<SupportFaq | undefined>;
   deleteSupportFaq(id: string): Promise<void>;
+
+  // Audit Logs
+  getAuditLogs(limit?: number, offset?: number): Promise<AuditLog[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogCount(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -732,6 +738,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSupportFaq(id: string): Promise<void> {
     await db.delete(supportFaqs).where(eq(supportFaqs.id, id));
+  }
+
+  // ============ AUDIT LOG ============
+  async getAuditLogs(limit: number = 50, offset: number = 0): Promise<AuditLog[]> {
+    return await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit).offset(offset);
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [created] = await db.insert(auditLogs).values(log).returning();
+    return created;
+  }
+
+  async getAuditLogCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(auditLogs);
+    return Number(result[0]?.count || 0);
   }
 }
 

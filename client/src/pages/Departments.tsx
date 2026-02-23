@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck, TrafficCone } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { PageSeo } from "@/components/PageSeo";
 import { useUser, type User } from "@/lib/auth";
 import { useLocation } from "wouter";
 
@@ -55,6 +56,7 @@ export default function Departments() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageSeo page="departments" />
       <Navbar />
       
       <div className="pt-24 px-6 pb-12">

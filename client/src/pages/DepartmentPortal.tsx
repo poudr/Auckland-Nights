@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/hooks/use-upload";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -1472,6 +1472,14 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
     setQuestions(questions.filter((_, i) => i !== idx));
   };
 
+  const moveQuestion = (idx: number, direction: "up" | "down") => {
+    const copy = [...questions];
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= copy.length) return;
+    [copy[idx], copy[swapIdx]] = [copy[swapIdx], copy[idx]];
+    setQuestions(copy);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const rolesOnAccept: RolesOnAccept = { discordRoleIds: selectedDiscordRoles, websiteRoles: selectedWebsiteRoles };
@@ -1576,6 +1584,14 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
                           <textarea className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground min-h-[80px]" placeholder={"Option 1\nOption 2\nOption 3"} value={q.options.join("\n")} onChange={(e) => updateQuestion(idx, { options: e.target.value.split("\n") })} data-testid={`textarea-options-${idx}`} />
                         </div>
                       )}
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => moveQuestion(idx, "up")} disabled={idx === 0} data-testid={`button-move-up-question-${idx}`}>
+                        <ArrowUp className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => moveQuestion(idx, "down")} disabled={idx === questions.length - 1} data-testid={`button-move-down-question-${idx}`}>
+                        <ArrowDown className="w-3 h-3" />
+                      </Button>
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 shrink-0" onClick={() => removeQuestion(idx)} data-testid={`button-remove-question-${idx}`}>
                       <Trash2 className="w-4 h-4" />
@@ -2136,45 +2152,118 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
   );
 }
 
-function RankRow({ rank, deptColor, onUpdate, onDelete }: { rank: Rank; deptColor: string; onUpdate: (data: Record<string, unknown>) => void; onDelete: () => void }) {
+function RankRow({ rank, deptColor, onUpdate, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: { 
+  rank: Rank; deptColor: string; 
+  onUpdate: (data: Record<string, unknown>) => void; 
+  onDelete: () => void; 
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
   const [editing, setEditing] = useState(false);
-  const [discordRoleId, setDiscordRoleId] = useState(rank.discordRoleId || "");
+  const [editData, setEditData] = useState({
+    name: rank.name,
+    abbreviation: rank.abbreviation || "",
+    callsignPrefix: rank.callsignPrefix || "",
+    isLeadership: rank.isLeadership ?? false,
+    discordRoleId: rank.discordRoleId || "",
+  });
 
   if (editing) {
     return (
-      <div className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/50 border border-white/10">
-        <div className="w-8 text-muted-foreground font-mono">{rank.priority}</div>
-        <div className="flex-1 font-medium">{rank.name}</div>
-        <div className="flex-1">
-          <Input
-            placeholder="Discord Role ID (e.g. 123456789012345678)"
-            value={discordRoleId}
-            onChange={(e) => setDiscordRoleId(e.target.value)}
-            className="h-8 text-sm"
-            data-testid={`input-rank-discord-id-${rank.id}`}
-            autoFocus
-          />
-        </div>
-        <Button
-          size="sm"
-          className="h-8"
-          onClick={() => {
-            onUpdate({ discordRoleId: discordRoleId || null });
-            setEditing(false);
-          }}
-          data-testid={`button-save-rank-${rank.id}`}
-        >
-          <Check className="w-3 h-3 mr-1" /> Save
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8"
-          onClick={() => { setEditing(false); setDiscordRoleId(rank.discordRoleId || ""); }}
-        >
-          Cancel
-        </Button>
-      </div>
+      <Card className="bg-zinc-900/50 border-white/10">
+        <CardContent className="pt-4 pb-4 space-y-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <Label className="text-xs">Rank Name</Label>
+              <Input
+                placeholder="Rank Name"
+                value={editData.name}
+                onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                className="h-8 text-sm"
+                data-testid={`input-edit-rank-name-${rank.id}`}
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Abbreviation</Label>
+              <Input
+                placeholder="ABBR"
+                value={editData.abbreviation}
+                onChange={(e) => setEditData({ ...editData, abbreviation: e.target.value })}
+                className="h-8 text-sm"
+                data-testid={`input-edit-rank-abbrev-${rank.id}`}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Callsign Prefix</Label>
+              <Input
+                placeholder="1-"
+                value={editData.callsignPrefix}
+                onChange={(e) => setEditData({ ...editData, callsignPrefix: e.target.value })}
+                className="h-8 text-sm"
+                data-testid={`input-edit-rank-prefix-${rank.id}`}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Discord Role ID</Label>
+              <Input
+                placeholder="123456789012345678"
+                value={editData.discordRoleId}
+                onChange={(e) => setEditData({ ...editData, discordRoleId: e.target.value })}
+                className="h-8 text-sm"
+                data-testid={`input-rank-discord-id-${rank.id}`}
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <Checkbox
+                checked={editData.isLeadership}
+                onCheckedChange={(checked) => setEditData({ ...editData, isLeadership: checked as boolean })}
+                id={`edit-leadership-${rank.id}`}
+              />
+              <Label htmlFor={`edit-leadership-${rank.id}`} className="text-xs">Command/Leadership Position</Label>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={() => {
+                onUpdate({
+                  name: editData.name,
+                  abbreviation: editData.abbreviation || null,
+                  callsignPrefix: editData.callsignPrefix || null,
+                  isLeadership: editData.isLeadership,
+                  discordRoleId: editData.discordRoleId || null,
+                });
+                setEditing(false);
+              }}
+              disabled={!editData.name}
+              data-testid={`button-save-rank-${rank.id}`}
+            >
+              <Check className="w-3 h-3 mr-1" /> Save
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => {
+                setEditing(false);
+                setEditData({
+                  name: rank.name,
+                  abbreviation: rank.abbreviation || "",
+                  callsignPrefix: rank.callsignPrefix || "",
+                  isLeadership: rank.isLeadership ?? false,
+                  discordRoleId: rank.discordRoleId || "",
+                });
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -2204,7 +2293,13 @@ function RankRow({ rank, deptColor, onUpdate, onDelete }: { rank: Rank; deptColo
           <Badge variant="outline">Personnel</Badge>
         )}
       </div>
-      <div className="w-20 flex gap-1">
+      <div className="flex gap-1">
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveUp} disabled={isFirst} data-testid={`button-move-up-rank-${rank.id}`}>
+          <ArrowUp className="w-4 h-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveDown} disabled={isLast} data-testid={`button-move-down-rank-${rank.id}`}>
+          <ArrowDown className="w-4 h-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -2241,6 +2336,9 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     discordRoleId: "",
   });
 
+  const [editingAccessRole, setEditingAccessRole] = useState(false);
+  const [accessRoleId, setAccessRoleId] = useState("");
+
   const isAos = code === "aos";
 
   const { data: ranksData, isLoading } = useQuery({
@@ -2251,6 +2349,22 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
       return res.json() as Promise<{ ranks: Rank[] }>;
     },
   });
+
+  const { data: accessRoleData } = useQuery({
+    queryKey: ["departmentAccessRole", code],
+    queryFn: async () => {
+      const res = await fetch(`/api/settings/${code}_access_discord_role_id`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.value || null;
+    },
+  });
+
+  useEffect(() => {
+    if (accessRoleData) {
+      setAccessRoleId(accessRoleData);
+    }
+  }, [accessRoleData]);
 
   const createRankMutation = useMutation({
     mutationFn: async (rankData: typeof newRank) => {
@@ -2316,6 +2430,48 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     },
   });
 
+  const reorderRankMutation = useMutation({
+    mutationFn: async ({ rankId, direction }: { rankId: string; direction: "up" | "down" }) => {
+      const sortedRanks = [...(ranksData?.ranks || [])].sort((a, b) => a.priority - b.priority);
+      const currentIndex = sortedRanks.findIndex(r => r.id === rankId);
+      const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (swapIndex < 0 || swapIndex >= sortedRanks.length) return;
+
+      const currentPriority = sortedRanks[currentIndex].priority;
+      const swapPriority = sortedRanks[swapIndex].priority;
+
+      await fetch(`/api/departments/${code}/ranks/${sortedRanks[currentIndex].id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ priority: swapPriority }),
+      });
+      await fetch(`/api/departments/${code}/ranks/${sortedRanks[swapIndex].id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ priority: currentPriority }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["departmentRanks", code] });
+    },
+  });
+
+  const updateAccessRoleMutation = useMutation({
+    mutationFn: async (newRoleId: string) => {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: `${code}_access_discord_role_id`, value: newRoleId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Portal Access Role Updated" });
+      setEditingAccessRole(false);
+      queryClient.invalidateQueries({ queryKey: ["departmentAccessRole", code] });
+    },
+  });
+
   if (isLoading) {
     return <Skeleton className="h-96" />;
   }
@@ -2324,6 +2480,67 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
 
   return (
     <div className="space-y-8">
+      <Card className="bg-zinc-900/40 border-white/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold" style={{ color: deptColor }}>General Portal Access Role</h3>
+              <p className="text-xs text-muted-foreground">The Discord Role ID that grants users access to this department's website portal</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {editingAccessRole ? (
+                <>
+                  <Input
+                    placeholder="Discord Role ID"
+                    value={accessRoleId}
+                    onChange={(e) => setAccessRoleId(e.target.value)}
+                    className="h-8 text-sm w-56"
+                    data-testid="input-access-role-id"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    onClick={() => updateAccessRoleMutation.mutate(accessRoleId)}
+                    disabled={updateAccessRoleMutation.isPending}
+                    data-testid="button-save-access-role"
+                  >
+                    <Check className="w-3 h-3 mr-1" /> Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => { setEditingAccessRole(false); setAccessRoleId(accessRoleData || ""); }}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-mono">
+                    {accessRoleData ? (
+                      <span className="text-green-400">{accessRoleData}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Not configured</span>
+                    )}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setEditingAccessRole(true)}
+                    data-testid="button-edit-access-role"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold" style={{ color: deptColor }}>Hierarchy Management</h2>
@@ -2424,8 +2641,15 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
           <div className="w-20"></div>
         </div>
         
-        {ranks.map((rank) => (
-          <RankRow key={rank.id} rank={rank} deptColor={deptColor} onUpdate={(data) => updateRankMutation.mutate({ rankId: rank.id, data })} onDelete={() => deleteRankMutation.mutate(rank.id)} />
+        {ranks.map((rank, idx) => (
+          <RankRow key={rank.id} rank={rank} deptColor={deptColor} 
+            onUpdate={(data) => updateRankMutation.mutate({ rankId: rank.id, data })} 
+            onDelete={() => deleteRankMutation.mutate(rank.id)}
+            onMoveUp={() => reorderRankMutation.mutate({ rankId: rank.id, direction: "up" })}
+            onMoveDown={() => reorderRankMutation.mutate({ rankId: rank.id, direction: "down" })}
+            isFirst={idx === 0}
+            isLast={idx === ranks.length - 1}
+          />
         ))}
         
         {ranks.length === 0 && (

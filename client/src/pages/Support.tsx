@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ClipboardList, ChevronLeft, ChevronDown, ChevronUp, Send, Settings, Lock, Unlock, Check, X, Trash2, Plus, ArrowLeft, FileText, Users, Shield, MessageSquare, HelpCircle, ExternalLink, Edit, Save } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronDown, ChevronUp, Send, Settings, Lock, Unlock, Check, X, Trash2, Plus, ArrowLeft, FileText, Users, Shield, MessageSquare, HelpCircle, ExternalLink, Edit, Save, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
+import { PageSeo } from "@/components/PageSeo";
 import { useUser } from "@/lib/auth";
 
 interface SupportForm {
@@ -311,6 +312,14 @@ function FormSettings({ form, onClose }: { form: SupportForm; onClose: () => voi
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
+  const moveQuestion = (idx: number, direction: "up" | "down") => {
+    const copy = [...questions];
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= copy.length) return;
+    [copy[idx], copy[swapIdx]] = [copy[swapIdx], copy[idx]];
+    setQuestions(copy);
+  };
+
   const updateQuestion = (index: number, field: string, value: any) => {
     const updated = [...questions];
     (updated[index] as any)[field] = value;
@@ -369,9 +378,17 @@ function FormSettings({ form, onClose }: { form: SupportForm; onClose: () => voi
             <div key={i} className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground font-medium">Question {i + 1}</span>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => removeQuestion(i)} data-testid={`button-remove-question-${i}`}>
-                  <Trash2 className="w-3 h-3" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => moveQuestion(i, "up")} disabled={i === 0} data-testid={`button-move-up-question-${i}`}>
+                    <ArrowUp className="w-3 h-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => moveQuestion(i, "down")} disabled={i === questions.length - 1} data-testid={`button-move-down-question-${i}`}>
+                    <ArrowDown className="w-3 h-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => removeQuestion(i)} data-testid={`button-remove-question-${i}`}>
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
               <Input
                 value={q.label}
@@ -1289,6 +1306,7 @@ export default function Support() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageSeo page="support" />
       <Navbar />
 
       <div className="relative overflow-hidden">

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
+import { PageSeo } from "@/components/PageSeo";
 import { useUser, loginWithDiscord } from "@/lib/auth";
 
 async function fetchSetting(key: string): Promise<string | null> {
@@ -25,6 +26,7 @@ export default function Join() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageSeo page="join" />
       <Navbar />
       
       <div className="pt-24 px-6 pb-12">

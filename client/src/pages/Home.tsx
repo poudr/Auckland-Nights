@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/hooks/use-upload";
 import Navbar from "@/components/Navbar";
+import { PageSeo } from "@/components/PageSeo";
 import { useUser, loginWithDiscord } from "@/lib/auth";
 import heroImg from "@/assets/hero-auckland.png";
 
@@ -281,6 +282,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <PageSeo page="home" />
       <Navbar />
 
       {/* Hero Section */}
