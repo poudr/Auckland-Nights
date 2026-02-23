@@ -253,13 +253,13 @@ export const hasPermission = (permission: string): RequestHandler => {
     const websiteRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
     
-    if (staffTier === "director") {
+    if (staffTier === "director" || staffTier === "executive") {
       return next();
     }
     
     if (permission === "admin") {
       const setting = await storage.getAdminSetting("staff_access_admin_panel");
-      const requiredTier = setting?.value || "director";
+      const requiredTier = setting?.value || "executive";
       if (staffTier && meetsStaffTier(staffTier, requiredTier)) {
         return next();
       }
@@ -269,10 +269,6 @@ export const hasPermission = (permission: string): RequestHandler => {
         return next();
       }
       return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
-    }
-    
-    if (staffTier === "executive") {
-      return next();
     }
     
     if (websiteRoles.includes(permission)) {

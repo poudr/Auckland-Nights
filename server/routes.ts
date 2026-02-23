@@ -1124,7 +1124,7 @@ export async function registerRoutes(
   };
 
   async function checkStaffPermission(userTier: string | null | undefined, settingKey: string, defaultTier: string): Promise<boolean> {
-    if (userTier === "director") return true;
+    if (userTier === "director" || userTier === "executive") return true;
     const setting = await storage.getAdminSetting(settingKey);
     const requiredTier = setting?.value || defaultTier;
     return meetsStaffTier(userTier, requiredTier);
