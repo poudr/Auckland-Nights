@@ -70,6 +70,56 @@ export async function registerRoutes(
   const discordConfigured = !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET);
 
   // ============ SEO ROUTES ============
+
+  // Serve OG meta tags for social media crawlers (works in both dev and production)
+  app.get("/{*path}", async (req, res, next) => {
+    const ua = (req.headers["user-agent"] || "").toLowerCase();
+    const isCrawler = /discordbot|twitterbot|facebookexternalhit|linkedinbot|slackbot|whatsapp|telegrambot|googlebot|bingbot/i.test(ua);
+    if (!isCrawler) return next();
+
+    try {
+      const ogImageSetting = await storage.getAdminSetting("og_image_url");
+      const faviconSetting = await storage.getAdminSetting("favicon_url");
+
+      const pagePath = req.path === "/" ? "home" : req.path.replace(/^\//, "").split("/")[0];
+      const titleSetting = await storage.getAdminSetting(`seo_${pagePath}_title`);
+      const descSetting = await storage.getAdminSetting(`seo_${pagePath}_description`);
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost";
+      const baseUrl = `${protocol}://${host}`;
+
+      const title = titleSetting?.value || "Tamaki Makaurau RP - Auckland's Premier GTA V Roleplay";
+      const description = descSetting?.value || "Join the most authentic New Zealand GTA V Roleplay server. Write your story in the streets of Auckland with custom jobs, vehicles, and a dedicated community.";
+      const ogImage = ogImageSetting?.value
+        ? (ogImageSetting.value.startsWith("http") ? ogImageSetting.value : `${baseUrl}${ogImageSetting.value}`)
+        : `${baseUrl}/opengraph.jpg`;
+      const favicon = faviconSetting?.value || "/favicon.png";
+
+      res.status(200).set({ "Content-Type": "text/html" }).end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <meta name="description" content="${description}" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="${baseUrl}${req.path}" />
+  <meta property="og:image" content="${ogImage}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${ogImage}" />
+  <link rel="icon" href="${favicon}" />
+</head>
+<body></body>
+</html>`);
+    } catch (e) {
+      next();
+    }
+  });
+
   app.get("/api/seo/:page", async (req, res) => {
     const page = req.params.page;
     const titleSetting = await storage.getAdminSetting(`seo_${page}_title`);
