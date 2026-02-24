@@ -397,7 +397,7 @@ export default function DepartmentPortal() {
                   {icon}
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-3xl font-black" style={{ color: department.color }}>
+                  <h1 className="text-xl sm:text-3xl font-black" style={{ color: department.color }}>
                     {department.name}
                   </h1>
                   <p className="text-muted-foreground">{department.description}</p>
@@ -448,26 +448,26 @@ export default function DepartmentPortal() {
           )}
 
           <Tabs value={activeTab} className="w-full">
-            <TabsList className="bg-zinc-900/50 border border-white/5 mb-8">
+            <TabsList className="bg-zinc-900/50 border border-white/5 mb-8 flex w-full overflow-x-auto flex-nowrap">
               <Link href={`/departments/${rawCode}/roster`}>
-                <TabsTrigger value="roster" className="gap-2" data-testid="tab-roster">
+                <TabsTrigger value="roster" className="gap-2 whitespace-nowrap shrink-0" data-testid="tab-roster">
                   <Users className="w-4 h-4" /> Roster
                 </TabsTrigger>
               </Link>
               <Link href={`/departments/${rawCode}/sops`}>
-                <TabsTrigger value="sops" className="gap-2" data-testid="tab-sops">
+                <TabsTrigger value="sops" className="gap-2 whitespace-nowrap shrink-0" data-testid="tab-sops">
                   <FileText className="w-4 h-4" /> SOPs
                 </TabsTrigger>
               </Link>
               <Link href={`/departments/${rawCode}/applications`}>
-                <TabsTrigger value="applications" className="gap-2" data-testid="tab-applications">
+                <TabsTrigger value="applications" className="gap-2 whitespace-nowrap shrink-0" data-testid="tab-applications">
                   <ClipboardList className="w-4 h-4" /> Applications
                 </TabsTrigger>
               </Link>
               {hasLeadershipAccess && (
                 <Link href={`/departments/${rawCode}/leadership`}>
-                  <TabsTrigger value="leadership" className="gap-2" data-testid="tab-leadership">
-                    <Settings className="w-4 h-4" /> Leadership Settings
+                  <TabsTrigger value="leadership" className="gap-2 whitespace-nowrap shrink-0" data-testid="tab-leadership">
+                    <Settings className="w-4 h-4" /> <span className="hidden sm:inline">Leadership </span>Settings
                   </TabsTrigger>
                 </Link>
               )}
@@ -544,7 +544,7 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   return (
     <div className="space-y-1" data-testid="roster-tab">
       <div className="rounded-lg border border-white/5 overflow-hidden">
-        <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+        <div className="grid items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
           style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr auto auto" : "2.5rem 1fr auto" }}
         >
           <div>#</div>
@@ -747,30 +747,43 @@ function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: Roste
 }
 
 const ATP_RANK_NAMES = ["Critical Care Paramedic", "Intensive Care Paramedic", "Paramedic", "Emergency Medical Technician", "First Responder"];
+const EMS_CALLSIGN_RANKS = ["District Operations Manager", "Group Operations Manager", "Watch Operations Manager"];
 
 function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterMember[]; allRanks: Rank[]; deptColor: string; csoRoleId: string | null }) {
   const leadershipRanks = allRanks.filter(r => r.isLeadership);
   const atpRanks = allRanks.filter(r => ATP_RANK_NAMES.includes(r.name));
+  const nonAtpNonLeadershipRanks = allRanks.filter(r => !r.isLeadership && !ATP_RANK_NAMES.includes(r.name));
   const leadershipRankIds = new Set(leadershipRanks.map(r => r.id));
+  const atpRankIds = new Set(atpRanks.map(r => r.id));
 
   const leadershipMembers = roster.filter(m => leadershipRankIds.has(m.rankId));
-  const atpMembers = roster.filter(m => !leadershipRankIds.has(m.rankId));
+  const midRanks = nonAtpNonLeadershipRanks;
+  const midMembers = roster.filter(m => !leadershipRankIds.has(m.rankId) && !atpRankIds.has(m.rankId));
+  const atpMembers = roster.filter(m => atpRankIds.has(m.rankId));
 
   const leadershipGroups = leadershipRanks.map(rank => ({
     rank,
     members: leadershipMembers.filter(m => m.rankId === rank.id),
   })).filter(g => g.members.length > 0);
 
+  const midGroups = midRanks.map(rank => ({
+    rank,
+    members: midMembers.filter(m => m.rankId === rank.id),
+  })).filter(g => g.members.length > 0);
+
+  const showCallsign = (rankName: string) => EMS_CALLSIGN_RANKS.includes(rankName);
+
   return (
     <div className="space-y-6" data-testid="roster-tab">
       {leadershipGroups.length > 0 && (
         <div className="rounded-lg border border-white/5 overflow-hidden">
           <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-            style={{ gridTemplateColumns: "2.5rem 1fr auto" }}
+            style={{ gridTemplateColumns: "2.5rem 1fr auto auto" }}
           >
             <div>#</div>
             <div>Member</div>
             <div className="text-center px-2">Rank</div>
+            <div className="text-center px-2 hidden sm:block">Callsign</div>
           </div>
           {leadershipGroups.map(({ rank, members }) => (
             <div key={rank.id}>
@@ -780,8 +793,36 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
                 <span className="text-[10px] text-muted-foreground">{members.length}</span>
               </div>
               {members.map((member, idx) => (
-                <RosterTableRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} isPolice={false} />
+                <EmsLeadershipRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} showCallsign={showCallsign(rank.name)} />
               ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {midGroups.length > 0 && (
+        <div className="rounded-lg border border-white/5 overflow-hidden">
+          <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+            style={{ gridTemplateColumns: "1fr auto auto auto" }}
+          >
+            <div>Name</div>
+            <div className="text-center px-2">Rank</div>
+            <div className="text-center px-2 hidden sm:block">Callsign</div>
+            <div className="text-center px-2 hidden sm:block">CSO</div>
+          </div>
+          {midGroups.map(({ rank, members }) => (
+            <div key={rank.id}>
+              <div className="flex items-center gap-3 px-4 py-2 bg-zinc-800/40 border-b border-white/5">
+                <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: deptColor }}>{rank.name}</h2>
+                <div className="flex-1 border-t border-white/5" />
+                <span className="text-[10px] text-muted-foreground">{members.length}</span>
+              </div>
+              {members.map((member) => {
+                if (!member.user) return null;
+                return (
+                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} showCallsign={showCallsign(rank.name)} />
+                );
+              })}
             </div>
           ))}
         </div>
@@ -810,14 +851,14 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
               {members.map((member) => {
                 if (!member.user) return null;
                 return (
-                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} />
+                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} showCallsign={false} />
                 );
               })}
             </div>
           );
         })}
 
-        {atpMembers.length === 0 && (
+        {atpMembers.length === 0 && midMembers.length === 0 && (
           <div className="text-center py-12">
             <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No roster members yet.</p>
@@ -828,7 +869,47 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
   );
 }
 
-function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMember; rank: Rank; deptColor: string; csoRoleId: string | null }) {
+function EmsLeadershipRow({ member, deptColor, index, showCallsign }: { member: RosterMember; deptColor: string; index: number; showCallsign: boolean }) {
+  const [showCard, setShowCard] = useState(false);
+  if (!member.user) return null;
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        className="grid items-center gap-2 px-2 sm:px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+        style={{ gridTemplateColumns: "2.5rem 1fr auto auto" }}
+        onClick={() => setShowCard(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
+        data-testid={`roster-row-${member.user.discordId}`}
+      >
+        <div className="text-xs text-muted-foreground font-mono">{index}</div>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+            <img src={getAvatarUrl(member.user)} alt={member.user.displayName || member.user.username} className="w-full h-full object-cover" />
+          </div>
+          <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
+        </div>
+        <div className="text-center px-2 shrink-0">
+          <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
+            {member.rank?.name}
+          </span>
+        </div>
+        <div className="text-center px-2 shrink-0 hidden sm:block">
+          {showCallsign && member.callsign ? (
+            <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          )}
+        </div>
+      </div>
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+    </>
+  );
+}
+
+function EmsRosterRow({ member, rank, deptColor, csoRoleId, showCallsign }: { member: RosterMember; rank: Rank; deptColor: string; csoRoleId: string | null; showCallsign: boolean }) {
   const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
   const hasCso = csoRoleId && member.user.roles && member.user.roles.includes(csoRoleId);
@@ -838,7 +919,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
       <div
         role="button"
         tabIndex={0}
-        className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+        className="grid items-center gap-2 px-2 sm:px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
         style={{ gridTemplateColumns: "1fr auto auto auto" }}
         onClick={() => setShowCard(true)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
@@ -856,7 +937,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
-          {member.callsign ? (
+          {showCallsign && member.callsign ? (
             <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
           ) : (
             <span className="text-xs text-muted-foreground">-</span>
@@ -932,7 +1013,7 @@ function RosterTableRow({ member, deptColor, index, isPolice }: { member: Roster
       <div
         role="button"
         tabIndex={0}
-        className="grid items-center gap-2 px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+        className="grid items-center gap-2 px-2 sm:px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
         style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr auto auto" : "2.5rem 1fr auto" }}
         onClick={() => setShowCard(true)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
@@ -2487,56 +2568,36 @@ function RankRow({ rank, deptColor, onUpdate, onDelete, onMoveUp, onMoveDown, is
   }
 
   return (
-    <div className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors">
-      <div className="w-8 text-muted-foreground font-mono">{rank.priority}</div>
-      <div className="flex-1 font-medium">{rank.name}</div>
-      <div className="w-24 text-center">
-        <Badge variant="secondary" style={{ backgroundColor: `${deptColor}20`, color: deptColor }}>
-          {rank.abbreviation || "-"}
-        </Badge>
+    <div className="p-4 rounded-lg bg-zinc-900/30 hover:bg-zinc-900/50 transition-colors space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <span className="text-muted-foreground font-mono text-sm shrink-0">{rank.priority}</span>
+          <span className="font-medium truncate">{rank.name}</span>
+          {rank.isLeadership ? (
+            <Badge className="bg-primary text-black shrink-0">Command</Badge>
+          ) : (
+            <Badge variant="outline" className="shrink-0">Personnel</Badge>
+          )}
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveUp} disabled={isFirst} data-testid={`button-move-up-rank-${rank.id}`}>
+            <ArrowUp className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveDown} disabled={isLast} data-testid={`button-move-down-rank-${rank.id}`}>
+            <ArrowDown className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(true)} data-testid={`button-edit-rank-${rank.id}`}>
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={onDelete} data-testid={`button-delete-rank-${rank.id}`}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
-      <div className="w-24 text-center text-muted-foreground">
-        {rank.callsignPrefix || "-"}
-      </div>
-      <div className="w-40 text-center text-xs font-mono">
-        {rank.discordRoleId ? (
-          <span className="text-green-400">{rank.discordRoleId.slice(-8)}</span>
-        ) : (
-          <span className="text-red-400/60">Not linked</span>
-        )}
-      </div>
-      <div className="w-24 text-center">
-        {rank.isLeadership ? (
-          <Badge className="bg-primary text-black">Command</Badge>
-        ) : (
-          <Badge variant="outline">Personnel</Badge>
-        )}
-      </div>
-      <div className="flex gap-1">
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveUp} disabled={isFirst} data-testid={`button-move-up-rank-${rank.id}`}>
-          <ArrowUp className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveDown} disabled={isLast} data-testid={`button-move-down-rank-${rank.id}`}>
-          <ArrowDown className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setEditing(true)}
-          data-testid={`button-edit-rank-${rank.id}`}
-        >
-          <Edit className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-red-400 hover:text-red-300"
-          onClick={onDelete}
-          data-testid={`button-delete-rank-${rank.id}`}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {rank.abbreviation && <span>Abbr: <span style={{ color: deptColor }}>{rank.abbreviation}</span></span>}
+        {rank.callsignPrefix && <span>Prefix: <span style={{ color: deptColor }}>{rank.callsignPrefix}</span></span>}
+        <span>Discord: {rank.discordRoleId ? <span className="text-green-400 font-mono">{rank.discordRoleId.slice(-8)}</span> : <span className="text-red-400/60">Not linked</span>}</span>
       </div>
     </div>
   );
@@ -2701,12 +2762,12 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     <div className="space-y-8">
       <Card className="bg-zinc-900/40 border-white/5">
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div>
               <h3 className="font-semibold" style={{ color: deptColor }}>General Portal Access Role</h3>
               <p className="text-xs text-muted-foreground">The Discord Role ID that grants users access to this department's website portal</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {editingAccessRole ? (
                 <>
                   <Input
@@ -2850,13 +2911,10 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
       )}
 
       <div className="space-y-2">
-        <div className="flex items-center gap-4 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="hidden lg:flex items-center gap-4 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           <div className="w-8">#</div>
           <div className="flex-1">Rank Name</div>
-          <div className="w-24 text-center">Abbreviation</div>
-          <div className="w-24 text-center">Prefix</div>
-          <div className="w-40 text-center">Discord Role ID</div>
-          <div className="w-24 text-center">Type</div>
+          <div className="text-center">Details</div>
           <div className="w-20"></div>
         </div>
         
