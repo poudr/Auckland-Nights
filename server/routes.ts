@@ -521,6 +521,51 @@ export async function registerRoutes(
         }
       }
 
+      if (code === "ems") {
+        const EMS_CALLSIGN_CONFIG: Record<string, { prefix: string; start: number; end: number }> = {
+          "District Operations Manager": { prefix: "OSCAR", start: 20, end: 20 },
+          "Group Operations Manager": { prefix: "OSCAR", start: 21, end: 29 },
+          "Watch Operations Manager": { prefix: "MIKE", start: 20, end: 29 },
+        };
+
+        const existingCallsigns = new Set<string>();
+        for (const m of manualRoster) {
+          if (m.callsign) existingCallsigns.add(m.callsign);
+        }
+        for (const entry of autoRoster) {
+          if (entry.callsign) existingCallsigns.add(entry.callsign);
+        }
+
+        for (const entry of autoRoster) {
+          const rankName = entry.rank?.name || "";
+          const config = EMS_CALLSIGN_CONFIG[rankName];
+          if (!config) continue;
+
+          if (!entry.callsign) {
+            for (let num = config.start; num <= config.end; num++) {
+              const callsign = `${config.prefix}${num}`;
+              if (!existingCallsigns.has(callsign)) {
+                entry.callsign = callsign;
+                existingCallsigns.add(callsign);
+
+                const manual = manualRoster.find(m => m.userId === entry.userId);
+                if (manual) {
+                  await storage.updateRosterMember(manual.id, { callsign });
+                } else {
+                  await storage.createRosterMember({
+                    userId: entry.userId,
+                    departmentCode: code,
+                    rankId: entry.rankId,
+                    callsign,
+                  });
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+
       let emsCsoRoleId: string | null = null;
       if (code === "ems") {
         const csoSetting = await storage.getAdminSetting("ems_cso_role_id");
@@ -1894,6 +1939,46 @@ export async function registerRoutes(
       res.json({ member });
     } catch (error) {
       res.status(500).json({ error: "Failed to update squad assignment" });
+    }
+  });
+
+  app.put("/api/departments/:code/roster/:memberId/callsign", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      const staffTier = req.user?.staffTier;
+      let isLeadership = staffTier === "director" || staffTier === "executive";
+      if (!isLeadership) {
+        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
+        if (rosterMember) {
+          const rank = await storage.getRank(rosterMember.rankId);
+          isLeadership = rank?.isLeadership || false;
+        }
+      }
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+      const { callsign, userId, rankId } = req.body;
+      const memberId = req.params.memberId as string;
+
+      if (memberId.startsWith("auto-") && userId && rankId) {
+        const existing = await storage.getRosterMemberByUser(userId, code);
+        if (existing) {
+          const updated = await storage.updateRosterMember(existing.id, { callsign: callsign || null });
+          return res.json({ member: updated });
+        }
+        const created = await storage.createRosterMember({
+          userId,
+          departmentCode: code,
+          rankId,
+          callsign: callsign || null,
+        });
+        return res.json({ member: created });
+      }
+
+      const member = await storage.updateRosterMember(memberId, { callsign: callsign || null });
+      res.json({ member });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update callsign" });
     }
   });
 
