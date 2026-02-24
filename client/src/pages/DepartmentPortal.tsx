@@ -747,7 +747,6 @@ function AosSquadRoster({ roster, allRanks, squads, deptColor }: { roster: Roste
 }
 
 const ATP_RANK_NAMES = ["Critical Care Paramedic", "Intensive Care Paramedic", "Paramedic", "Emergency Medical Technician", "First Responder"];
-const EMS_CALLSIGN_RANKS = ["District Operations Manager", "Group Operations Manager", "Watch Operations Manager"];
 
 function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterMember[]; allRanks: Rank[]; deptColor: string; csoRoleId: string | null }) {
   const leadershipRanks = allRanks.filter(r => r.isLeadership);
@@ -771,8 +770,6 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
     members: midMembers.filter(m => m.rankId === rank.id),
   })).filter(g => g.members.length > 0);
 
-  const showCallsign = (rankName: string) => EMS_CALLSIGN_RANKS.includes(rankName);
-
   return (
     <div className="space-y-6" data-testid="roster-tab">
       {leadershipGroups.length > 0 && (
@@ -793,7 +790,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
                 <span className="text-[10px] text-muted-foreground">{members.length}</span>
               </div>
               {members.map((member, idx) => (
-                <EmsLeadershipRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} showCallsign={showCallsign(rank.name)} />
+                <EmsLeadershipRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} />
               ))}
             </div>
           ))}
@@ -820,7 +817,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
               {members.map((member) => {
                 if (!member.user) return null;
                 return (
-                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} showCallsign={showCallsign(rank.name)} />
+                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} />
                 );
               })}
             </div>
@@ -851,7 +848,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
               {members.map((member) => {
                 if (!member.user) return null;
                 return (
-                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} showCallsign={false} />
+                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} />
                 );
               })}
             </div>
@@ -869,7 +866,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
   );
 }
 
-function EmsLeadershipRow({ member, deptColor, index, showCallsign }: { member: RosterMember; deptColor: string; index: number; showCallsign: boolean }) {
+function EmsLeadershipRow({ member, deptColor, index }: { member: RosterMember; deptColor: string; index: number }) {
   const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
 
@@ -897,7 +894,7 @@ function EmsLeadershipRow({ member, deptColor, index, showCallsign }: { member: 
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
-          {showCallsign && member.callsign ? (
+          {member.callsign ? (
             <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
           ) : (
             <span className="text-xs text-muted-foreground">-</span>
@@ -909,7 +906,7 @@ function EmsLeadershipRow({ member, deptColor, index, showCallsign }: { member: 
   );
 }
 
-function EmsRosterRow({ member, rank, deptColor, csoRoleId, showCallsign }: { member: RosterMember; rank: Rank; deptColor: string; csoRoleId: string | null; showCallsign: boolean }) {
+function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMember; rank: Rank; deptColor: string; csoRoleId: string | null }) {
   const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
   const hasCso = csoRoleId && member.user.roles && member.user.roles.includes(csoRoleId);
@@ -937,7 +934,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId, showCallsign }: { me
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
-          {showCallsign && member.callsign ? (
+          {member.callsign ? (
             <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
           ) : (
             <span className="text-xs text-muted-foreground">-</span>
