@@ -1312,7 +1312,7 @@ export async function registerRoutes(
   app.post("/api/admin/settings", isAuthenticated, hasPermission("admin"), async (req, res) => {
     const settingKey = req.body.key as string;
     const isAccessControlSetting = settingKey?.startsWith("staff_") || settingKey?.startsWith("access_");
-    const isSeoSetting = settingKey?.startsWith("seo_");
+    const isSeoSetting = settingKey?.startsWith("seo_") || settingKey === "favicon_url" || settingKey === "og_image_url";
 
     if (isAccessControlSetting) {
       const allowed = await checkStaffPermission(req.user?.staffTier, "staff_manage_access_control", "director");
