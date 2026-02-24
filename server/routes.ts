@@ -528,9 +528,10 @@ export async function registerRoutes(
           "Watch Operations Manager": { prefix: "MIKE", start: 20, end: 29 },
         };
 
+        const activeUserIds = new Set(autoRoster.map(e => e.userId));
         const existingCallsigns = new Set<string>();
         for (const m of manualRoster) {
-          if (m.callsign) existingCallsigns.add(m.callsign);
+          if (m.callsign && activeUserIds.has(m.userId)) existingCallsigns.add(m.callsign);
         }
         for (const entry of autoRoster) {
           if (entry.callsign) existingCallsigns.add(entry.callsign);

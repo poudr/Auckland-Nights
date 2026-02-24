@@ -827,11 +827,10 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
 
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-          style={{ gridTemplateColumns: "1fr auto auto auto" }}
+          style={{ gridTemplateColumns: "1fr auto auto" }}
         >
           <div>Name</div>
           <div className="text-center px-2">ATP</div>
-          <div className="text-center px-2 hidden sm:block">Callsign</div>
           <div className="text-center px-2 hidden sm:block">CSO</div>
         </div>
 
@@ -848,7 +847,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
               {members.map((member) => {
                 if (!member.user) return null;
                 return (
-                  <EmsRosterRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} />
+                  <EmsAtpRow key={member.id} member={member} rank={rank} deptColor={deptColor} csoRoleId={csoRoleId} />
                 );
               })}
             </div>
@@ -946,7 +945,53 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
               <Check className="w-3 h-3 text-green-400" />
             </div>
           ) : (
-            <span className="text-xs text-muted-foreground">-</span>
+            <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-500/20" data-testid={`cso-cross-${member.user.discordId}`}>
+              <X className="w-3 h-3 text-red-400" />
+            </div>
+          )}
+        </div>
+      </div>
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+    </>
+  );
+}
+
+function EmsAtpRow({ member, rank, deptColor, csoRoleId }: { member: RosterMember; rank: Rank; deptColor: string; csoRoleId: string | null }) {
+  const [showCard, setShowCard] = useState(false);
+  if (!member.user) return null;
+  const hasCso = csoRoleId && member.user.roles && member.user.roles.includes(csoRoleId);
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        className="grid items-center gap-2 px-2 sm:px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+        style={{ gridTemplateColumns: "1fr auto auto" }}
+        onClick={() => setShowCard(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
+        data-testid={`roster-row-${member.user.discordId}`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+            <img src={getAvatarUrl(member.user)} alt={member.user.displayName || member.user.username} className="w-full h-full object-cover" />
+          </div>
+          <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
+        </div>
+        <div className="text-center px-2 shrink-0">
+          <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
+            {rank.name}
+          </span>
+        </div>
+        <div className="text-center px-2 shrink-0 hidden sm:block">
+          {hasCso ? (
+            <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-500/20" data-testid={`cso-check-${member.user.discordId}`}>
+              <Check className="w-3 h-3 text-green-400" />
+            </div>
+          ) : (
+            <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-500/20" data-testid={`cso-cross-${member.user.discordId}`}>
+              <X className="w-3 h-3 text-red-400" />
+            </div>
           )}
         </div>
       </div>
