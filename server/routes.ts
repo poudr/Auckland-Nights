@@ -1619,8 +1619,8 @@ export async function registerRoutes(
     
     console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
     
-    // Directors and Executives automatically get access to ALL department portals with leadership
-    if (staffTier === "director" || staffTier === "executive") {
+    // Directors, Executives, and Managers automatically get access to ALL department portals with leadership
+    if (staffTier === "director" || staffTier === "executive" || staffTier === "manager") {
       console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
@@ -1661,6 +1661,11 @@ export async function registerRoutes(
     const deptForms = await storage.getApplicationFormsByDepartment(department);
     const managedFormIds = managedForms.filter(m => deptForms.some(f => f.id === m.formId)).map(m => m.formId);
     const isFormManager = managedFormIds.length > 0;
+
+    // Leadership members always get access to their department
+    if (!hasAccess && isLeadership) {
+      hasAccess = true;
+    }
 
     if (!hasAccess && isFormManager) {
       hasAccess = true;
@@ -1782,18 +1787,7 @@ export async function registerRoutes(
     try {
       const code = req.params.code as string;
       
-      // Check if user has leadership access
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
-      
+      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1812,18 +1806,7 @@ export async function registerRoutes(
     try {
       const code = req.params.code as string;
       
-      // Check if user has leadership access
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
-      
+      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1860,15 +1843,7 @@ export async function registerRoutes(
 
   app.post("/api/aos/squads", isAuthenticated, async (req, res) => {
     try {
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
+      const isLeadership = await isUserDepartmentLeadership(req.user!, "aos");
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1881,15 +1856,7 @@ export async function registerRoutes(
 
   app.put("/api/aos/squads/:id", isAuthenticated, async (req, res) => {
     try {
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
+      const isLeadership = await isUserDepartmentLeadership(req.user!, "aos");
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1902,15 +1869,7 @@ export async function registerRoutes(
 
   app.delete("/api/aos/squads/:id", isAuthenticated, async (req, res) => {
     try {
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
+      const isLeadership = await isUserDepartmentLeadership(req.user!, "aos");
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1924,15 +1883,7 @@ export async function registerRoutes(
   // Update roster member squad assignment
   app.put("/api/departments/aos/roster/:memberId/squad", isAuthenticated, async (req, res) => {
     try {
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, "aos");
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
+      const isLeadership = await isUserDepartmentLeadership(req.user!, "aos");
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1946,15 +1897,7 @@ export async function registerRoutes(
   app.put("/api/departments/:code/roster/:memberId/callsign", isAuthenticated, async (req, res) => {
     try {
       const code = req.params.code as string;
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
+      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
@@ -1987,18 +1930,7 @@ export async function registerRoutes(
     try {
       const code = req.params.code as string;
       
-      // Check if user has leadership access
-      const staffTier = req.user?.staffTier;
-      let isLeadership = staffTier === "director" || staffTier === "executive";
-      
-      if (!isLeadership) {
-        const rosterMember = await storage.getRosterMemberByUser(req.user!.id, code);
-        if (rosterMember) {
-          const rank = await storage.getRank(rosterMember.rankId);
-          isLeadership = rank?.isLeadership || false;
-        }
-      }
-      
+      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
       if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
         return res.status(403).json({ error: "Leadership access required" });
       }
