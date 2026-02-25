@@ -1003,8 +1003,12 @@ export async function registerRoutes(
           const aosRanks = await storage.getRanksByDepartment("aos");
           aosRanks.filter(r => r.discordRoleId).forEach(r => allowedDiscordRoleIds.add(r.discordRoleId!));
         }
+        if (deptCode === "ems") {
+          const sertRanks = await storage.getRanksByDepartment("sert");
+          sertRanks.filter(r => r.discordRoleId).forEach(r => allowedDiscordRoleIds.add(r.discordRoleId!));
+        }
 
-        const allowedWebsiteRoles = new Set([deptCode, ...(deptCode === "police" ? ["aos"] : [])]);
+        const allowedWebsiteRoles = new Set([deptCode, ...(deptCode === "police" ? ["aos"] : []), ...(deptCode === "ems" ? ["sert"] : [])]);
 
         const validDiscordRoleIds = (discordRoleIds || []).filter(id => allowedDiscordRoleIds.has(id));
         const validWebsiteRoles = (newWebsiteRoles || []).filter(r => allowedWebsiteRoles.has(r));

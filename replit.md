@@ -4,6 +4,7 @@
 A dark-themed website for a New Zealand/Auckland-based GTA V FiveM roleplay server. Features Discord OAuth authentication with automatic role syncing from the Discord server to the website.
 
 ## Recent Changes
+- **Feb 25, 2026**: SERT department - Added Special Emergency Response Team (S.E.R.T) as sub-department under EMS (similar to AOS under Police); EMS portal has EMS/SERT toggle; Crosshair icon, #DC2626 color; blank ranks (managed via Leadership Settings); full feature parity (roster, SOPs, applications, leadership settings); accept panel allows granting SERT portal access from EMS applications; fixed department leadership access bug (check-access now grants hasAccess when isLeadership is true; all backend leadership route guards use shared isUserDepartmentLeadership function; manager staffTier included in leadership check)
 - **Feb 23, 2026**: Support Form Managers - Extended form managers to support forms (Ban Appeals, Staff Apps, Social Media, etc.); Directors/Executives can assign users via UserCog button on form cards and in form detail; Form managers can view/respond to submissions, update status, delete applications for assigned support forms; Notifications delivered to form managers on new submissions and replies; Fixed allUsersData parsing bug in both DepartmentPortal and Support form manager dialogs
 - **Feb 23, 2026**: Form Managers system - Individual user assignment to manage specific application forms; FormManagersDialog with user selection (leadership-only); Form managers can view/respond to submissions, update status, delete applications for assigned forms; check-access grants portal access to managers; Favicon upload in SEO Management tab (supports .ico/.png/.svg, stored via admin settings, dynamically loaded via PageSeo)
 - **Feb 23, 2026**: QoL improvements batch - Question reordering (move up/down) in department and support form builders; Full rank editing (name, abbreviation, callsign prefix, leadership flag, Discord ID) in both Leadership Settings and Admin panel; Rank hierarchy reordering (move up/down priority); General portal access role display/edit per department; Rebuilt admin panel with Dashboard (stats overview), Access Control (granular permission tiers per action), SEO Management (per-page titles/descriptions with preview), Audit Log (paginated action tracking with user info), plus existing tabs; Dynamic page SEO via PageSeo component; Audit logging on admin actions (role CRUD, settings, sync, user updates)
@@ -112,7 +113,8 @@ shared/
 1. **Auckland Police Department** (police) - Blue, 11 ranks from Commissioner to Recruit
 2. **NZ Fire & Emergency** (fire) - Red, 8 ranks from District Manager to Recruit
 3. **Emergency Ambulance Service** (ems) - Green, 8 ranks from District Operations Officer to First Responder
-4. **Armed Offenders Squad** (aos) - Purple, 6 ranks from Commander to Trainee
+4. **Armed Offenders Squad** (aos) - Purple, sub-department under Police. Ranks managed via Leadership Settings
+5. **Special Emergency Response Team** (sert) - Red (#DC2626), sub-department under EMS. Ranks managed via Leadership Settings
 
 ### Other Departments
 5. **Auckland Towing** (towing) - Amber, ranks managed via Leadership Settings. General Discord Role ID: 1404050461581115453

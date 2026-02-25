@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/hooks/use-upload";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown, UserCog } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown, UserCog, Crosshair } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -83,6 +83,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Target: <Target className="w-6 h-6" />,
   Truck: <Truck className="w-6 h-6" />,
   TrafficCone: <TrafficCone className="w-6 h-6" />,
+  Crosshair: <Crosshair className="w-6 h-6" />,
 };
 
 async function fetchDepartment(code: string): Promise<{ department: Department }> {
@@ -310,8 +311,9 @@ export default function DepartmentPortal() {
   const deepLinkSubmissionId = searchParams.get("submission");
   
   const isPolicePortal = rawCode === "police";
-  const [activeSection, setActiveSection] = useState<"police" | "aos">("police");
-  const code = isPolicePortal ? activeSection : rawCode;
+  const isEmsPortal = rawCode === "ems";
+  const [activeSection, setActiveSection] = useState<"police" | "aos" | "ems" | "sert">(rawCode === "ems" ? "ems" : "police");
+  const code = isPolicePortal ? activeSection : isEmsPortal ? activeSection : rawCode;
   
   const { data: user, isLoading: userLoading } = useUser();
   
@@ -327,7 +329,14 @@ export default function DepartmentPortal() {
     enabled: !!user && isPolicePortal,
   });
 
+  const { data: sertAccessData } = useQuery<AccessData>({
+    queryKey: ["departmentAccess", "sert"],
+    queryFn: () => checkAccess("sert"),
+    enabled: !!user && isEmsPortal,
+  });
+
   const hasAosAccess = aosAccessData?.hasAccess || user?.staffTier === "director" || user?.staffTier === "executive" || false;
+  const hasSertAccess = sertAccessData?.hasAccess || user?.staffTier === "director" || user?.staffTier === "executive" || false;
   
   const hasLeadershipAccess = accessData?.isLeadership || accessData?.isFormManager || user?.staffTier === "director" || user?.staffTier === "executive" || false;
   
@@ -341,6 +350,12 @@ export default function DepartmentPortal() {
     queryKey: ["department", "aos"],
     queryFn: () => fetchDepartment("aos"),
     enabled: isPolicePortal,
+  });
+
+  const { data: sertDeptData } = useQuery({
+    queryKey: ["department", "sert"],
+    queryFn: () => fetchDepartment("sert"),
+    enabled: isEmsPortal,
   });
 
   if (userLoading || accessLoading) {
@@ -360,6 +375,10 @@ export default function DepartmentPortal() {
 
   if (rawCode === "aos") {
     return <Redirect to="/departments/police" />;
+  }
+
+  if (rawCode === "sert") {
+    return <Redirect to="/departments/ems" />;
   }
 
   if (accessData?.hasAccess === false) {
@@ -427,7 +446,30 @@ export default function DepartmentPortal() {
                 </div>
               )}
 
-              {!(isPolicePortal && hasAosAccess) && <div className="mb-4" />}
+              {isEmsPortal && hasSertAccess && (
+                <div className="flex gap-2 mb-8" data-testid="ems-sert-toggle">
+                  <Button
+                    variant={activeSection === "ems" ? "default" : "outline"}
+                    onClick={() => setActiveSection("ems")}
+                    className="gap-2"
+                    style={activeSection === "ems" ? { backgroundColor: "#22C55E", color: "white" } : {}}
+                    data-testid="toggle-ems"
+                  >
+                    <HeartPulse className="w-4 h-4" /> Emergency Ambulance Service
+                  </Button>
+                  <Button
+                    variant={activeSection === "sert" ? "default" : "outline"}
+                    onClick={() => setActiveSection("sert")}
+                    className="gap-2"
+                    style={activeSection === "sert" ? { backgroundColor: "#DC2626", color: "white" } : {}}
+                    data-testid="toggle-sert"
+                  >
+                    <Crosshair className="w-4 h-4" /> S.E.R.T
+                  </Button>
+                </div>
+              )}
+
+              {!(isPolicePortal && hasAosAccess) && !(isEmsPortal && hasSertAccess) && <div className="mb-4" />}
             </>
           ) : null}
 
@@ -1786,7 +1828,7 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
 
   const deptRanks = ranksData || [];
   const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
-  const websiteRoleOptions = [code, ...(code === "police" ? ["aos"] : [])];
+  const websiteRoleOptions = [code, ...(code === "police" ? ["aos"] : []), ...(code === "ems" ? ["sert"] : [])];
 
   const toggleDiscordRole = (roleId: string) => {
     setSelectedDiscordRoles(prev => prev.includes(roleId) ? prev.filter(r => r !== roleId) : [...prev, roleId]);
@@ -2232,7 +2274,7 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
 
   const deptRanks = ranksData || [];
   const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
-  const websiteRoleOptions = [deptCode, ...(deptCode === "police" ? ["aos"] : [])];
+  const websiteRoleOptions = [deptCode, ...(deptCode === "police" ? ["aos"] : []), ...(deptCode === "ems" ? ["sert"] : [])];
 
   useEffect(() => {
     if (data?.form?.rolesOnAccept && !rolesInitialized) {

@@ -19,6 +19,7 @@ export async function seedDatabase() {
     { code: "aos", name: "Armed Offenders Squad (AOS)", color: "#8B5CF6", icon: "Target", description: "Special operations and tactical response unit." },
     { code: "towing", name: "Auckland Towing", color: "#F59E0B", icon: "Truck", description: "Vehicle recovery and towing services for Tamaki Makaurau." },
     { code: "traffic", name: "Auckland Traffic Control", color: "#F97316", icon: "TrafficCone", description: "Traffic management and control services for Tamaki Makaurau." },
+    { code: "sert", name: "Special Emergency Response Team (S.E.R.T)", color: "#DC2626", icon: "Crosshair", description: "Specialist tactical emergency response unit." },
   ]);
 
   // Seed Police Ranks
@@ -78,9 +79,9 @@ export async function seedDatabase() {
 
   // Seed Staff Roles
   await db.insert(websiteRoles).values([
-    { name: "director", displayName: "Director", description: "Server Director - Full access", color: "#f97316", permissions: ["admin", "police", "fire", "ems", "aos", "towing", "traffic"], staffTier: "director", priority: 1 },
-    { name: "executive", displayName: "Executive", description: "Server Executive - Full access", color: "#f59e0b", permissions: ["admin", "police", "fire", "ems", "aos", "towing", "traffic"], staffTier: "executive", priority: 2 },
-    { name: "manager", displayName: "Manager", description: "Server Manager", color: "#eab308", permissions: ["admin", "police", "fire", "ems", "aos", "towing", "traffic"], staffTier: "manager", priority: 3 },
+    { name: "director", displayName: "Director", description: "Server Director - Full access", color: "#f97316", permissions: ["admin", "police", "fire", "ems", "aos", "towing", "traffic", "sert"], staffTier: "director", priority: 1 },
+    { name: "executive", displayName: "Executive", description: "Server Executive - Full access", color: "#f59e0b", permissions: ["admin", "police", "fire", "ems", "aos", "towing", "traffic", "sert"], staffTier: "executive", priority: 2 },
+    { name: "manager", displayName: "Manager", description: "Server Manager", color: "#eab308", permissions: ["admin", "police", "fire", "ems", "aos", "towing", "traffic", "sert"], staffTier: "manager", priority: 3 },
     { name: "administrator", displayName: "Administrator", description: "Server Administrator", color: "#84cc16", permissions: ["admin"], staffTier: "administrator", priority: 4 },
     { name: "moderator", displayName: "Moderator", description: "Server Moderator", color: "#22c55e", permissions: [], staffTier: "moderator", priority: 5 },
     { name: "support", displayName: "Support", description: "Support Staff", color: "#06b6d4", permissions: [], staffTier: "support", priority: 6 },

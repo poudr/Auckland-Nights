@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck, TrafficCone } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck, TrafficCone, Crosshair } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { PageSeo } from "@/components/PageSeo";
 import { useUser, type User } from "@/lib/auth";
@@ -32,6 +32,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Target: <Target className="w-8 h-8" />,
   Truck: <Truck className="w-8 h-8" />,
   TrafficCone: <TrafficCone className="w-8 h-8" />,
+  Crosshair: <Crosshair className="w-8 h-8" />,
 };
 
 async function fetchDepartments(): Promise<DepartmentsData> {
@@ -108,13 +109,13 @@ export default function Departments() {
                 </div>
               </div>
 
-              {data.departments.filter(d => d.isActive && !["police", "fire", "ems", "aos"].includes(d.code)).length > 0 && (
+              {data.departments.filter(d => d.isActive && !["police", "fire", "ems", "aos", "sert"].includes(d.code)).length > 0 && (
                 <div>
                   <h2 className="text-2xl font-bold mb-1 text-white">Other Departments</h2>
                   <div className="h-0.5 w-16 bg-primary mb-6" />
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {data.departments
-                      .filter(d => d.isActive && !["police", "fire", "ems", "aos"].includes(d.code))
+                      .filter(d => d.isActive && !["police", "fire", "ems", "aos", "sert"].includes(d.code))
                       .map((dept, idx) => (
                       <motion.div
                         key={dept.id}

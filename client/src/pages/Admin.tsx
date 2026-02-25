@@ -30,6 +30,7 @@ const AVAILABLE_PERMISSIONS = [
   { id: "fire", label: "Fire", description: "NZ Fire & Emergency portal" },
   { id: "ems", label: "EMS", description: "Emergency Ambulance Service portal" },
   { id: "aos", label: "AOS", description: "Armed Offenders Squad portal" },
+  { id: "sert", label: "SERT", description: "Special Emergency Response Team portal" },
 ] as const;
 
 interface RoleMapping {

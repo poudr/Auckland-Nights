@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { motion } from "framer-motion";
-import { Shield, Flame, HeartPulse, Target, Truck, TrafficCone, Users, FileText, Clock, ChevronRight, ExternalLink } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Truck, TrafficCone, Crosshair, Users, FileText, Clock, ChevronRight, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ const DEPT_ICONS: Record<string, React.ReactNode> = {
   Target: <Target className="w-5 h-5" />,
   Truck: <Truck className="w-5 h-5" />,
   TrafficCone: <TrafficCone className="w-5 h-5" />,
+  Crosshair: <Crosshair className="w-5 h-5" />,
 };
 
 interface ProfileData {
