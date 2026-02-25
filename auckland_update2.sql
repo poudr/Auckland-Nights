@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 1gcWyQV2qsmElczyIm9kWBomsGGhzdvpVWoR0rtI6qwgvaxGud7fWXfjCMUwGYc
+\restrict jh2cpFqNSX1AP7uwico2nHoicdBuExDnWSms5hJx4vf5kzDlfaZ9M7nMNTrbMj3
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -643,6 +643,7 @@ c3df3c11-ad8c-4d32-8f1a-44886d1b25d9	aos	Armed Offenders Squad (AOS)	Special ope
 32adad51-8aa1-4a49-a149-fe572293024a	ems	Emergency Ambulance Service	Providing world-class emergency medical care.	#22C55E	HeartPulse	{}	{}	t	2026-01-30 08:32:00.085456
 c46817ef-fba4-4308-8ce0-0bd3e6c6649a	towing	Auckland Towing	Vehicle recovery and towing services for Tamaki Makaurau.	#F59E0B	Truck	{}	{}	t	2026-02-16 10:40:02.882865
 494e2764-2bb7-4ea6-a37d-23cd63455e94	traffic	Auckland Traffic Control	Traffic management and control services for Tamaki Makaurau.	#F97316	TrafficCone	{}	{}	t	2026-02-20 07:20:01.472241
+2be629de-49dd-4e69-b438-ca506d85b156	sert	Special Emergency Response Team (S.E.R.T)	Specialist tactical emergency response unit.	#DC2626	Crosshair	{}	{}	t	2026-02-25 03:17:36.857662
 \.
 
 
@@ -827,16 +828,15 @@ COPY public.session (sid, sess, expire) FROM stdin;
 QSaY3guD6jEay2JIi0YTQrceFABa9hqs	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-28T09:43:29.821Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"fb25c031-f05c-4521-8824-8fead841287b"}}	2026-02-28 09:52:40
 idCZc6xdq-VtB__q8f5nS0nUPw--m1mz	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-24T04:45:56.622Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"e7bb17c3-ef1b-4bc0-b324-92cb54c298a3"}}	2026-03-02 08:48:34
 f-krti_tzudYunmG9Dg1HcseVqj4smiB	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T08:20:57.744Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"eb23c389-fbdf-4701-b798-8d856dfaabbe"}}	2026-03-02 09:10:59
-pucvfS3BpH5rgQF0rxBuV8aBS0XF84UW	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T08:17:32.688Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"30e9cd02-37cd-42f4-a82d-fa4541434e9c"}}	2026-03-02 10:46:49
+1RRF3dI1uw9OYJq65g7XquTXGema7UN_	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T23:18:36.708Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"30e9cd02-37cd-42f4-a82d-fa4541434e9c"}}	2026-03-03 05:34:41
+pucvfS3BpH5rgQF0rxBuV8aBS0XF84UW	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T08:17:32.688Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"30e9cd02-37cd-42f4-a82d-fa4541434e9c"}}	2026-03-04 05:17:42
 37-WKbsSpT-tS7wYEXmsFN2yTYnVLSgO	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-23T10:45:48.119Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"30e9cd02-37cd-42f4-a82d-fa4541434e9c"}}	2026-02-24 10:38:36
-ilrY-cCIQyRIFKwBaniZgAtxjqrtjHoP	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-22T07:48:29.961Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"71c3b3c6-9f18-4335-9789-3c50153581f1"}}	2026-02-24 04:16:33
-2gyangx5-QSg-IfI49BBeCtRC7MTFByt	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-24T04:37:08.710Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"26a58610-36f2-4e0f-a40c-9e7995a74f1c"}}	2026-02-24 04:37:58
-1RRF3dI1uw9OYJq65g7XquTXGema7UN_	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T23:18:36.708Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"30e9cd02-37cd-42f4-a82d-fa4541434e9c"}}	2026-03-03 04:46:37
 qe3codFIE2BFw9qdK49paUrAscGMw8I9	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T00:31:05.312Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"30e9cd02-37cd-42f4-a82d-fa4541434e9c"}}	2026-03-02 02:18:15
 s4YeNymk5l5YKUYb4rY4pUVMtBPRq5oO	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T10:23:02.680Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"5175ba5a-87ca-4c0c-a715-decdc682d9d8"}}	2026-03-02 10:57:00
+MNf1kNSuhJikmjRaP64B5LjTrNU_Ev_v	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-03T05:30:13.206Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"e7bb17c3-ef1b-4bc0-b324-92cb54c298a3"}}	2026-03-04 04:44:30
 e4Ue7NNLk3OLoXjLWA9IbdzDKVZ1DlDi	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-22T01:32:09.298Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"e41c0f1f-5223-41c6-9544-3129448eb140"}}	2026-02-28 10:23:04
 8WuGPXZjo8tLsiQJ5Lt23wkHyv6TxI0s	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-27T08:22:37.970Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"7fd58eb9-dac3-46e2-aa82-4578ce7122be"}}	2026-02-27 09:22:30
-m5rG95Y-QsxGbOKuOZO8yEf1gsDaQlZx	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T00:55:10.833Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"e41c0f1f-5223-41c6-9544-3129448eb140"}}	2026-03-03 04:40:06
+m5rG95Y-QsxGbOKuOZO8yEf1gsDaQlZx	{"cookie":{"originalMaxAge":604800000,"expires":"2026-03-02T00:55:10.833Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"e41c0f1f-5223-41c6-9544-3129448eb140"}}	2026-03-04 05:17:35
 KGJk-AmF-tHrl1OO_A2wMG85vv7KVeET	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-24T06:00:10.373Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"64f19604-5cc0-40d2-8e67-aa7d5c1b4e38"}}	2026-02-28 05:03:27
 FGv-Dcr6ozXhJ2_OsnHypqVHyOrqY5qC	{"cookie":{"originalMaxAge":604800000,"expires":"2026-02-23T01:09:26.340Z","secure":false,"httpOnly":true,"path":"/","sameSite":"lax"},"passport":{"user":"80c1a428-1345-4777-8f84-10ff81fa5e10"}}	2026-02-28 06:20:15
 \.
@@ -973,10 +973,10 @@ COPY public.user_role_assignments (id, user_id, role_id, assigned_by, assigned_a
 
 COPY public.users (id, discord_id, username, discriminator, avatar, email, roles, access_token, refresh_token, created_at, updated_at, website_roles, is_staff, staff_tier, staff_tiers, display_name) FROM stdin;
 6fd7824a-200f-45bc-9871-03ae05bc97ed	95439370395320320	lucifer0381	0	034377d3b6d24d3d96d62bb37e4f4192	lauriewilton@gmail.com	{1465161752818745344,1423193195566862466,1066150585226764389,1423193184229654598,1129267841695223878,1101314765537681448,1436528928419217513,1409791795222810714,1436528931913203792,1046442733251858483,1027902719010279445,1147046997182906389,1438320158212096214,1436528047049412729,1437310221864407162,1418828057170415739,1259512907776000124,1370289820739309630}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.xMhzig1w49u6nF3wcVN3XoZU0jdi8D	sRtUlWbhqppQyC87WyGdBouSBI4KzJ	2026-02-10 08:12:29.779749	2026-02-16 02:02:21.249	{police}	t	development	{development}	\N
+e7bb17c3-ef1b-4bc0-b324-92cb54c298a3	847698626015920129	sireasyy	0	4c1bd1d03379abc9a9baf266686c22a2	hunterseth791@gmail.com	{1027902716665663488,1047131637625925632,1423193195566862466,1418497891806347365,1027908734804037702,1129267841695223878,1101314765537681448,1423193184229654598,1465161771567550474,1384035820071161867,1046442733251858483,1027902719010279445,1081891303522041977,1418828057170415739,1259512907776000124}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.ux0e8cUet7ZR7s7z0ydimV94DRYWOy	C0SgPB6F7LNUooqIsU66mTNYWSIMDA	2026-02-12 07:48:43.318796	2026-02-24 05:30:13.13	{ems,police,fire,aos,towing,traffic}	t	manager	{manager}	sireasyy
 80c1a428-1345-4777-8f84-10ff81fa5e10	1013264794121404418	dirtydeedindustrys	0	c935297c3e33390b125c02ae1787a860	blairbillows@hotmail.com	{1027902716665663488,1474305322704175104,1423193195566862466,1465162818935591056,1027902719010279445,1147046997182906389,1472545028567203871,1101314765537681448,1046442733251858483,1474307982694158397,1404050461581115453,1370289820739309630,1027908734804037702,1129267841695223878,1423193184229654598,1436528931913203792,1438320158212096214,1436528928419217513,1436528047049412729,1437310221864407162,1418828057170415739,1259512907776000124}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.hc6eKaP3YXIsK4HDGWUzOykMhijrSC	ZAdBZ9V0IZrKS38WUYDekiIuLIg2cE	2026-02-12 07:56:06.389941	2026-02-23 01:01:25.14	{ems,police,traffic,towing,fire}	t	development	{development}	\N
 64f19604-5cc0-40d2-8e67-aa7d5c1b4e38	1051612547641520212	jackson7181	0	ea1d12845643a4a6d9f88546c0b45f97	fivemrp234@gmail.com	{1047131637625925632,1423193195566862466,1418497891806347365,1129267841695223878,1027912314067882055,1101314765537681448,1423193184229654598,1413664099065401484,1046442733251858483,1404050461581115453,1027902719010279445,1418828057170415739,1259512907776000124,1474307982694158397,1370289820739309630}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.YDQB5n3jqma54OmJeeuYyuPu86T1lA	tmDtupSH81tX8KcH4ybEZWSwWyYvmF	2026-02-10 09:34:48.587519	2026-02-24 04:34:30.968	{police,fire,ems,aos,towing,traffic}	t	manager	{manager,development}	\N
 e41c0f1f-5223-41c6-9544-3129448eb140	518249306021691426	toenailpapi	0	bd2125a517ffcba64f8845b999e53deb	ansaart26@gmail.com	{1410115394399633408,1423193195566862466,1409056959294083203,1409055778471542794,1402861069008900237,1465161766873989140,1027902719010279445,1413660888300257432,1423898475116105890,1471749143923003558,1101314765537681448,1046442733251858483,1083564774681493685,1413662561714307132,1409784291147251773,1409785665264160829,1044543042314588230,1129267841695223878,1423193184229654598,1418828057170415739,995318088897675387,1259512907776000124}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.kU6Wkn0YvQGOSVN5qbg2BsA7KCPACI	IUGMN9xvq0EqKLsAmpq98lgUZX3MW6	2026-02-09 09:42:19.265269	2026-02-24 04:34:31.21	{aos,police,admin,towing,traffic}	t	director	{director}	toenailpapi
-e7bb17c3-ef1b-4bc0-b324-92cb54c298a3	847698626015920129	sireasyy	0	4c1bd1d03379abc9a9baf266686c22a2	hunterseth791@gmail.com	{1027902716665663488,1047131637625925632,1423193195566862466,1418497891806347365,1027908734804037702,1129267841695223878,1101314765537681448,1423193184229654598,1465161771567550474,1384035820071161867,1046442733251858483,1027902719010279445,1081891303522041977,1418828057170415739,1259512907776000124}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.mdR2VgfDLO9nZneJf5K6fbWwOSPIix	zgxwSjfLHTsWzyrDAQICuwDfhuhPXH	2026-02-12 07:48:43.318796	2026-02-24 04:34:31.509	{ems,police,fire,aos,towing,traffic}	t	manager	{manager}	\N
 06391685-1436-4035-a3af-dc6ad6bf42f6	1256073057651392634	mr_evil1	0	33a72a28daedfb10830638135ef881d5	ronanbooth12@gmail.com	{1027902716665663488,1423193195566862466,1423193184229654598,1027908734804037702,1101314765537681448,1436528928419217513,1465161771567550474,1436528931913203792,1046442733251858483,1027902719010279445,1147046997182906389,1265956194413973527,1437310221864407162,1418828057170415739,1259512907776000124}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.wxP2qPJgkjWpIaqXgnGIqjinvVDqnz	kF2Yj8B6UlYGGrNzvfutFJdfejvqh3	2026-02-12 07:46:19.872777	2026-02-16 02:02:21.672	{ems,fire,police}	t	support	{support}	\N
 875bac79-7706-4090-8856-dca2ad880eec	1117302869088030760	ironreboot	0	c40be7521146f45023979384fadb33ad	jimmy.riley06@outlook.co.nz	{1027902716665663488,1423193195566862466,1027908734804037702,1421028127110598727,1101314765537681448,1423193184229654598,1465161771567550474,1032229247269486603,1465162818935591056,1046442733251858483,1027902719010279445,1081891303522041977,1418828057170415739,1259512907776000124,1370289820739309630}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.n1reBC1y4QnyKnApF794yUXNYBSW9t	ij97fyoBh7wOhmguli1hm0veQMshyD	2026-02-10 08:18:17.489496	2026-02-16 02:02:21.842	{ems,fire,police}	t	administrator	{administrator,development}	\N
 a3423273-41d2-4cdd-ba6e-1cf5512de15e	904213480884826133	mrjrg1992	0	1469bfb8b2bc19db6678757579dd9763	jackrobbiegale@gmail.com	{1410115394399633408,1465161763996827649,1423193195566862466,1418497891806347365,1027908734804037702,1414149579707781190,1101314765537681448,1423193184229654598,1438319237897912522,1465164357133664398,1066150589437853777,1046442733251858483,1465163230975496212,1027902719010279445,1083564774681493685,1409791795222810714,1418828057170415739}	MTQ2MzQ2MzIyMzg5MzE2NDEwNQ.l96oEG94saUDV42xLzMCNOv8zDOM3x	LQWeK7LQGGxsmBKzcXAsF2qV2pFhom	2026-02-12 07:54:39.935519	2026-02-16 02:02:21.957	{aos,fire,police}	f	\N	{}	\N
@@ -1002,14 +1002,14 @@ fb25c031-f05c-4521-8824-8fead841287b	605361500210855937	ice_breaker47	0	51209c91
 COPY public.website_roles (id, name, display_name, description, color, permissions, staff_tier, discord_role_id, priority, is_active, created_at) FROM stdin;
 064d1685-9478-49da-8cfb-1eab7ca92404	test	test	tes	#6f24a8	{admin}	\N	\N	0	f	2026-02-09 09:53:33.21503
 8f670e4c-15be-4568-80d2-5c553c192f57	webiste_master	Website Master Access		#6b7280	{admin}	\N	1259120047037874287	0	t	2026-02-23 09:02:44.892299
+52ff38d8-a383-4c9b-a89b-236447447cc0	executive	Executive		#6b7280	{admin,police,fire,ems,aos,towing,traffic,sert}	executive	1275050373295509514	0	f	2026-01-30 09:48:25.277023
+bc66c980-dc8b-49d8-a201-d57c46f6623b	director	Director		#f1c40f	{admin,towing,traffic,sert}	director	1044543042314588230	0	t	2026-02-09 10:29:06.76628
+219d514b-f418-4500-9fb4-a8223af687f7	manager	Manager	Server Manager	#b10e1c	{police,fire,ems,aos,towing,traffic,sert}	manager	1047131637625925632	3	t	2026-02-09 12:32:47.613746
 11048bf4-f777-428a-b11f-aa947389344c	moderator	Moderator	Server Moderator	#e06f0b	{}	moderator	1081891294613348352	5	t	2026-02-09 12:32:47.613746
 c673d158-b039-4a85-8380-b85635322910	support	Support	Support Staff	#02db3c	{}	support	1265956194413973527	6	t	2026-02-09 12:32:47.613746
 8ce9a513-8b2c-4f3a-98a9-9eee68bfd656	development	Development Team		#1abc9c	{}	development	1370289820739309630	7	t	2026-02-09 23:42:48.859347
 906ccf46-6585-450b-b980-a7aac54bf845	executivee	Executive		#5e088a	{admin}	executive	1275050373295509514	2	t	2026-02-09 10:44:14.341481
 ba843b05-16b4-4a44-8144-a6da20fc7d09	administrator	Administrator	Server Administrator	#3498db	{}	administrator	1032229247269486603	4	t	2026-02-09 12:32:47.613746
-52ff38d8-a383-4c9b-a89b-236447447cc0	executive	Executive		#6b7280	{admin,police,fire,ems,aos,towing,traffic}	executive	1275050373295509514	0	f	2026-01-30 09:48:25.277023
-bc66c980-dc8b-49d8-a201-d57c46f6623b	director	Director		#f1c40f	{admin,towing,traffic}	director	1044543042314588230	0	t	2026-02-09 10:29:06.76628
-219d514b-f418-4500-9fb4-a8223af687f7	manager	Manager	Server Manager	#b10e1c	{police,fire,ems,aos,towing,traffic}	manager	1047131637625925632	3	t	2026-02-09 12:32:47.613746
 \.
 
 
@@ -1280,5 +1280,5 @@ CREATE INDEX "IDX_session_expire" ON public.session USING btree (expire);
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 1gcWyQV2qsmElczyIm9kWBomsGGhzdvpVWoR0rtI6qwgvaxGud7fWXfjCMUwGYc
+\unrestrict jh2cpFqNSX1AP7uwico2nHoicdBuExDnWSms5hJx4vf5kzDlfaZ9M7nMNTrbMj3
 
