@@ -41,11 +41,18 @@ async function fetchDepartments(): Promise<DepartmentsData> {
   return res.json();
 }
 
-async function checkAccess(code: string): Promise<boolean> {
+interface AccessData {
+  hasAccess: boolean;
+  isLeadership: boolean;
+  isFormManager?: boolean;
+  managedFormIds?: string[];
+  department: string;
+}
+
+async function checkAccess(code: string): Promise<AccessData> {
   const res = await fetch(`/api/user/check-access/${code}`, { credentials: "include" });
-  if (!res.ok) return false;
-  const data = await res.json();
-  return data.hasAccess;
+  if (!res.ok) return { hasAccess: false, isLeadership: false, department: code };
+  return res.json();
 }
 
 export default function Departments() {
@@ -139,11 +146,13 @@ export default function Departments() {
 
 function DepartmentCard({ department, user }: { department: Department; user: User | null }) {
   const [, setLocation] = useLocation();
-  const { data: hasAccess } = useQuery({
+  const { data: accessData } = useQuery<AccessData>({
     queryKey: ["departmentAccess", department.code],
     queryFn: () => checkAccess(department.code),
     enabled: !!user,
   });
+
+  const hasAccess = accessData?.hasAccess || false;
 
   const { data: whitelistData } = useQuery({
     queryKey: ["whitelist-form", department.code],
@@ -152,7 +161,7 @@ function DepartmentCard({ department, user }: { department: Department; user: Us
       if (!res.ok) return { form: null };
       return res.json();
     },
-    enabled: !!user && hasAccess === false,
+    enabled: !!user && accessData?.hasAccess === false,
   });
 
   const hasWhitelistForm = !!whitelistData?.form;
