@@ -190,8 +190,7 @@ export interface IStorage {
   removeFormManager(formId: string, userId: string): Promise<void>;
   isFormManager(formId: string, userId: string): Promise<boolean>;
 
-  // Roster Notes
-  getRosterNotes(rosterId: string): Promise<RosterNote[]>;
+  getRosterNotes(rosterMemberId: string, departmentCode: string): Promise<RosterNote[]>;
   createRosterNote(note: InsertRosterNote): Promise<RosterNote>;
   deleteRosterNote(id: string): Promise<void>;
 }
@@ -793,8 +792,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============ ROSTER NOTES ============
-  async getRosterNotes(rosterId: string): Promise<RosterNote[]> {
-    return await db.select().from(rosterNotes).where(eq(rosterNotes.rosterId, rosterId)).orderBy(desc(rosterNotes.createdAt));
+  async getRosterNotes(rosterMemberId: string, departmentCode: string): Promise<RosterNote[]> {
+    return await db.select().from(rosterNotes)
+      .where(and(eq(rosterNotes.rosterMemberId, rosterMemberId), eq(rosterNotes.departmentCode, departmentCode)))
+      .orderBy(desc(rosterNotes.createdAt));
   }
 
   async createRosterNote(note: InsertRosterNote): Promise<RosterNote> {

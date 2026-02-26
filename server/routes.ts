@@ -912,7 +912,7 @@ export async function registerRoutes(
       }
 
       if (targetForm.isOpen === false) {
-        return res.status(400).json({ error: "This form is currently closed and not accepting submissions" });
+        return res.status(400).json({ error: "This application form is currently closed" });
       }
 
       const userWebsiteRoles = user.websiteRoles || [];
@@ -1278,6 +1278,125 @@ export async function registerRoutes(
     }
   });
 
+  // ============ ROSTER DIVISION ROUTES ============
+
+  app.put("/api/roster/:id/division", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const member = await storage.getRosterMember(req.params.id);
+      if (!member) return res.status(404).json({ error: "Roster member not found" });
+
+      if (!(await isUserDepartmentLeadership(user, member.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can assign divisions" });
+      }
+
+      const { division } = req.body;
+      const updated = await storage.updateRosterMember(req.params.id, { division: division || null });
+      res.json({ member: updated });
+    } catch (error) {
+      console.error("Update division error:", error);
+      res.status(500).json({ error: "Failed to update division" });
+    }
+  });
+
+  // ============ ROSTER NOTES ROUTES ============
+
+  app.get("/api/roster/:id/notes", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const member = await storage.getRosterMember(req.params.id);
+      if (!member) return res.status(404).json({ error: "Roster member not found" });
+
+      if (!(await isUserDepartmentLeadership(user, member.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can view notes" });
+      }
+
+      const notes = await storage.getRosterNotes(req.params.id, member.departmentCode);
+      const enriched = await Promise.all(notes.map(async (note) => {
+        const author = await storage.getUser(note.authorId);
+        return {
+          ...note,
+          authorName: author?.displayName || author?.username || "Unknown",
+          authorAvatar: author?.avatar || null,
+          authorDiscordId: author?.discordId || "",
+        };
+      }));
+      res.json({ notes: enriched });
+    } catch (error) {
+      console.error("Fetch notes error:", error);
+      res.status(500).json({ error: "Failed to fetch notes" });
+    }
+  });
+
+  app.post("/api/roster/:id/notes", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const member = await storage.getRosterMember(req.params.id);
+      if (!member) return res.status(404).json({ error: "Roster member not found" });
+
+      if (!(await isUserDepartmentLeadership(user, member.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can add notes" });
+      }
+
+      const { content } = req.body;
+      if (!content || !content.trim()) return res.status(400).json({ error: "Content is required" });
+
+      const note = await storage.createRosterNote({
+        rosterMemberId: req.params.id,
+        departmentCode: member.departmentCode,
+        authorId: user.id,
+        content: content.trim(),
+      });
+
+      res.json({
+        ...note,
+        authorName: user.displayName || user.username,
+        authorAvatar: user.avatar,
+        authorDiscordId: user.discordId,
+      });
+    } catch (error) {
+      console.error("Create note error:", error);
+      res.status(500).json({ error: "Failed to create note" });
+    }
+  });
+
+  app.delete("/api/roster-notes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Only leadership can delete notes" });
+      }
+
+      await storage.deleteRosterNote(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete note error:", error);
+      res.status(500).json({ error: "Failed to delete note" });
+    }
+  });
+
+  // ============ APPLICATION FORM OPEN/CLOSE ROUTES ============
+
+  app.patch("/api/forms/:id/toggle-open", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const form = await storage.getApplicationForm(req.params.id);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      if (!(await isUserDepartmentLeadership(user, form.departmentCode))) {
+        return res.status(403).json({ error: "Only leadership can toggle form status" });
+      }
+
+      const { isOpen } = req.body;
+      const updated = await storage.updateApplicationForm(req.params.id, { isOpen: !!isOpen });
+      res.json({ form: updated });
+    } catch (error) {
+      console.error("Toggle form error:", error);
+      res.status(500).json({ error: "Failed to toggle form status" });
+    }
+  });
+
   // ============ NOTIFICATION ROUTES ============
 
   app.get("/api/notifications", isAuthenticated, async (req, res) => {
@@ -1628,8 +1747,11 @@ export async function registerRoutes(
     const userRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
     
+    console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
+    
     // Directors, Executives, and Managers automatically get access to ALL department portals with leadership
     if (staffTier === "director" || staffTier === "executive" || staffTier === "manager") {
+      console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
     
@@ -1931,109 +2053,6 @@ export async function registerRoutes(
       res.json({ member });
     } catch (error) {
       res.status(500).json({ error: "Failed to update callsign" });
-    }
-  });
-
-  // ============ ROSTER DIVISION (Police only) ============
-  app.put("/api/departments/:code/roster/:memberId/division", isAuthenticated, async (req, res) => {
-    try {
-      const code = req.params.code as string;
-      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
-      if (!isLeadership) return res.status(403).json({ error: "Leadership access required" });
-
-      const { POLICE_DIVISIONS } = await import("@shared/schema");
-      const division = req.body.division || null;
-      if (division && !POLICE_DIVISIONS.includes(division)) {
-        return res.status(400).json({ error: "Invalid division value" });
-      }
-      const member = await storage.updateRosterMember(req.params.memberId as string, { division });
-      res.json({ member });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update division" });
-    }
-  });
-
-  // ============ ROSTER NOTES ============
-  app.get("/api/roster/:rosterId/notes", isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user!;
-      const rosterId = req.params.rosterId as string;
-      const rosterMember = await storage.getRosterMember(rosterId);
-      if (!rosterMember) return res.status(404).json({ error: "Roster member not found" });
-
-      const isTopTier = user.staffTier && ["director", "executive", "manager"].includes(user.staffTier);
-      const isLeadership = await isUserDepartmentLeadership(user, rosterMember.departmentCode);
-      if (!isTopTier && !isLeadership) return res.status(403).json({ error: "Access denied" });
-
-      const notes = await storage.getRosterNotes(rosterId);
-      const allUsers = await storage.getAllUsers();
-      const notesWithAuthors = notes.map(n => {
-        const author = allUsers.find(u => u.id === n.authorId);
-        return { ...n, authorName: author?.displayName || author?.username || "Unknown" };
-      });
-      res.json({ notes: notesWithAuthors });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch notes" });
-    }
-  });
-
-  app.post("/api/roster/:rosterId/notes", isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user!;
-      const rosterId = req.params.rosterId as string;
-      const { content } = req.body;
-      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
-
-      const rosterMember = await storage.getRosterMember(rosterId);
-      if (!rosterMember) return res.status(404).json({ error: "Roster member not found" });
-
-      const isTopTier = user.staffTier && ["director", "executive", "manager"].includes(user.staffTier);
-      const isLeadership = await isUserDepartmentLeadership(user, rosterMember.departmentCode);
-      if (!isTopTier && !isLeadership) return res.status(403).json({ error: "Access denied" });
-
-      const note = await storage.createRosterNote({
-        rosterId,
-        departmentCode: rosterMember.departmentCode,
-        authorId: user.id,
-        content: content.trim(),
-      });
-      res.json({ note: { ...note, authorName: user.displayName || user.username } });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create note" });
-    }
-  });
-
-  app.delete("/api/roster/:rosterId/notes/:noteId", isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user!;
-      const rosterId = req.params.rosterId as string;
-      const rosterMember = await storage.getRosterMember(rosterId);
-      if (!rosterMember) return res.status(404).json({ error: "Roster member not found" });
-
-      const isTopTier = user.staffTier && ["director", "executive", "manager"].includes(user.staffTier);
-      const isLeadership = await isUserDepartmentLeadership(user, rosterMember.departmentCode);
-      if (!isTopTier && !isLeadership) return res.status(403).json({ error: "Access denied" });
-
-      await storage.deleteRosterNote(req.params.noteId as string);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete note" });
-    }
-  });
-
-  // ============ APPLICATION FORM OPEN/CLOSE ============
-  app.patch("/api/forms/:id/toggle", isAuthenticated, async (req, res) => {
-    try {
-      const form = await storage.getApplicationForm(req.params.id as string);
-      if (!form) return res.status(404).json({ error: "Form not found" });
-
-      const isLeadership = await isUserDepartmentLeadership(req.user!, form.departmentCode);
-      if (!isLeadership) return res.status(403).json({ error: "Leadership access required" });
-
-      const updated = await storage.updateApplicationForm(form.id, { isOpen: !form.isOpen });
-      res.json({ form: updated });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to toggle form" });
     }
   });
 
