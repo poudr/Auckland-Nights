@@ -3,26 +3,6 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
-process.on("SIGHUP", () => {
-});
-
-const originalExit = process.exit;
-let serverReady = false;
-process.exit = ((code?: number) => {
-  if (serverReady) {
-    return undefined as never;
-  }
-  return originalExit(code as any);
-}) as typeof process.exit;
-
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-});
-
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
-});
-
 const app = express();
 const httpServer = createServer(app);
 
@@ -117,7 +97,6 @@ app.use((req, res, next) => {
       reusePort: true,
     },
     () => {
-      serverReady = true;
       log(`serving on port ${port}`);
     },
   );

@@ -56,7 +56,6 @@ interface RosterMember {
   callsign: string | null;
   qid: string | null;
   squadId: string | null;
-  division: string | null;
   status: string;
   user: { id: string; username: string; displayName: string | null; avatar: string | null; discordId: string; roles: string[] | null } | null;
   rank: Rank | null;
@@ -540,10 +539,7 @@ export default function DepartmentPortal() {
   );
 }
 
-const POLICE_DIVISIONS = ["PST", "RPT", "CIB", "Dogs Squad"] as const;
-
 function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
-  const [rosterSubTab, setRosterSubTab] = useState<"roster" | "division">("roster");
   const { data, isLoading } = useQuery({
     queryKey: ["roster", code],
     queryFn: () => fetchRoster(code),
@@ -589,152 +585,61 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
 
   return (
     <div className="space-y-1" data-testid="roster-tab">
-      {isPolice && (
-        <div className="flex gap-1 mb-3">
-          <Button
-            variant={rosterSubTab === "roster" ? "default" : "ghost"}
-            size="sm"
-            className={rosterSubTab === "roster" ? "bg-blue-600 hover:bg-blue-700 text-white" : "text-muted-foreground"}
-            onClick={() => setRosterSubTab("roster")}
-            data-testid="subtab-roster"
-          >
-            <Users className="w-3.5 h-3.5 mr-1.5" /> Roster
-          </Button>
-          <Button
-            variant={rosterSubTab === "division" ? "default" : "ghost"}
-            size="sm"
-            className={rosterSubTab === "division" ? "bg-blue-600 hover:bg-blue-700 text-white" : "text-muted-foreground"}
-            onClick={() => setRosterSubTab("division")}
-            data-testid="subtab-division"
-          >
-            <Layers className="w-3.5 h-3.5 mr-1.5" /> Division
-          </Button>
+      <div className="rounded-lg border border-white/5 overflow-hidden">
+        <div className="grid items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+          style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr auto auto" : "2.5rem 1fr auto" }}
+        >
+          <div>#</div>
+          <div>Member</div>
+          <div className="text-center px-2">Rank</div>
+          {isPolice && <div className="text-center px-2">QID</div>}
         </div>
-      )}
 
-      {isPolice && rosterSubTab === "division" ? (
-        <PoliceDivisionRoster roster={roster} allRanks={allRanks} deptColor={deptColor} />
-      ) : (
-        <>
-          <div className="rounded-lg border border-white/5 overflow-hidden">
-            <div className="grid items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-              style={{ gridTemplateColumns: isPolice ? "2.5rem 1fr auto auto" : "2.5rem 1fr auto" }}
-            >
-              <div>#</div>
-              <div>Member</div>
-              <div className="text-center px-2">Rank</div>
-              {isPolice && <div className="text-center px-2">QID</div>}
+        {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }, groupIdx) => (
+          <div key={rank.id}>
+            <div className="flex items-center gap-3 px-4 py-2 bg-zinc-800/40 border-b border-white/5">
+              <h2
+                className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: rank.isLeadership ? deptColor : undefined }}
+              >
+                {rank.name}
+              </h2>
+              <div className="flex-1 border-t border-white/5" />
+              <span className="text-[10px] text-muted-foreground">{members.length}</span>
             </div>
-
-            {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }) => (
-              <div key={rank.id}>
-                <div className="flex items-center gap-3 px-4 py-2 bg-zinc-800/40 border-b border-white/5">
-                  <h2
-                    className="text-xs font-bold uppercase tracking-widest"
-                    style={{ color: rank.isLeadership ? deptColor : undefined }}
-                  >
-                    {rank.name}
-                  </h2>
-                  <div className="flex-1 border-t border-white/5" />
-                  <span className="text-[10px] text-muted-foreground">{members.length}</span>
-                </div>
-                {members.map((member, idx) => (
-                  <RosterTableRow
-                    key={member.id}
-                    member={member}
-                    deptColor={deptColor}
-                    index={idx + 1}
-                    isPolice={isPolice}
-                  />
-                ))}
-              </div>
+            {members.map((member, idx) => (
+              <RosterTableRow
+                key={member.id}
+                member={member}
+                deptColor={deptColor}
+                index={idx + 1}
+                isPolice={isPolice}
+              />
             ))}
-
-            {populatedGroups.length === 0 && (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No roster members yet.</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Assign Discord Role IDs to department ranks to auto-populate the roster.
-                </p>
-              </div>
-            )}
           </div>
+        ))}
 
-          {emptyRanks.length > 0 && populatedGroups.length > 0 && (
-            <div className="pt-4">
-              <p className="text-xs text-muted-foreground mb-2">Ranks with no members:</p>
-              <div className="flex flex-wrap gap-2">
-                {emptyRanks.map(({ rank }) => (
-                  <Badge key={rank.id} variant="outline" className="text-xs text-muted-foreground">
-                    {rank.name} {!rank.discordRoleId && "(no Discord role linked)"}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function PoliceDivisionRoster({ roster, allRanks, deptColor }: { roster: RosterMember[]; allRanks: Rank[]; deptColor: string }) {
-  const divisionGroups = POLICE_DIVISIONS.map(div => ({
-    division: div,
-    members: roster.filter(m => m.division === div)
-      .sort((a, b) => (a.rank?.priority || 999) - (b.rank?.priority || 999)),
-  }));
-
-  const unassigned = roster.filter(m => !m.division || !POLICE_DIVISIONS.includes(m.division as any))
-    .sort((a, b) => (a.rank?.priority || 999) - (b.rank?.priority || 999));
-
-  const rosterTableHeader = (
-    <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-      style={{ gridTemplateColumns: "2.5rem 1fr auto auto" }}
-    >
-      <div>#</div>
-      <div>Member</div>
-      <div className="text-center px-2">Rank</div>
-      <div className="text-center px-2">QID</div>
-    </div>
-  );
-
-  return (
-    <div className="space-y-6" data-testid="division-roster">
-      {divisionGroups.map(({ division, members }) => (
-        <div key={division} className="rounded-lg border border-white/5 overflow-hidden" data-testid={`division-section-${division}`}>
-          <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/60 border-b border-white/10">
-            <Layers className="w-4 h-4" style={{ color: deptColor }} />
-            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: deptColor }}>
-              {division}
-            </h2>
-            <div className="flex-1 border-t border-white/5" />
-            <span className="text-xs text-muted-foreground">{members.length} members</span>
+        {populatedGroups.length === 0 && (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No roster members yet.</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Assign Discord Role IDs to department ranks to auto-populate the roster.
+            </p>
           </div>
-          {rosterTableHeader}
-          {members.length > 0 ? members.map((member, idx) => (
-            <RosterTableRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} isPolice={true} />
-          )) : (
-            <div className="text-center py-6 text-sm text-muted-foreground">No members assigned to this division.</div>
-          )}
-        </div>
-      ))}
+        )}
+      </div>
 
-      {unassigned.length > 0 && (
-        <div className="rounded-lg border border-white/5 overflow-hidden" data-testid="division-section-unassigned">
-          <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/60 border-b border-white/10">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-              Unassigned
-            </h2>
-            <div className="flex-1 border-t border-white/5" />
-            <span className="text-xs text-muted-foreground">{unassigned.length} members</span>
+      {emptyRanks.length > 0 && populatedGroups.length > 0 && (
+        <div className="pt-4">
+          <p className="text-xs text-muted-foreground mb-2">Ranks with no members:</p>
+          <div className="flex flex-wrap gap-2">
+            {emptyRanks.map(({ rank }) => (
+              <Badge key={rank.id} variant="outline" className="text-xs text-muted-foreground">
+                {rank.name} {!rank.discordRoleId && "(no Discord role linked)"}
+              </Badge>
+            ))}
           </div>
-          {rosterTableHeader}
-          {unassigned.map((member, idx) => (
-            <RosterTableRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} isPolice={true} />
-          ))}
         </div>
       )}
     </div>
@@ -1137,84 +1042,13 @@ function EmsAtpRow({ member, rank, deptColor, csoRoleId }: { member: RosterMembe
   );
 }
 
-function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCode }: { member: RosterMember; deptColor: string; open: boolean; onOpenChange: (open: boolean) => void; departmentCode?: string }) {
-  const { user: currentUser } = useUser();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [noteContent, setNoteContent] = useState("");
-  const [divisionValue, setDivisionValue] = useState(member.division || "");
-  const code = departmentCode || (member as any).departmentCode || "police";
-
-  const isLeadershipUser = currentUser?.staffTier && ["director", "executive", "manager"].includes(currentUser.staffTier);
-  const isPolice = code === "police";
-  const showNotes = isPolice && isLeadershipUser;
-  const showDivision = isPolice && isLeadershipUser;
-
-  const { data: notesData, refetch: refetchNotes } = useQuery({
-    queryKey: ["rosterNotes", member.id],
-    queryFn: async () => {
-      if (member.id.startsWith("auto-")) return { notes: [] };
-      const res = await fetch(`/api/roster/${member.id}/notes`, { credentials: "include" });
-      if (!res.ok) return { notes: [] };
-      return res.json() as Promise<{ notes: Array<{ id: string; content: string; authorName: string; authorAvatar: string | null; authorDiscordId: string; createdAt: string }> }>;
-    },
-    enabled: open && showNotes && !member.id.startsWith("auto-"),
-  });
-
-  const divisionMutation = useMutation({
-    mutationFn: async (division: string) => {
-      const res = await fetch(`/api/roster/${member.id}/division`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ division: division || null }),
-      });
-      if (!res.ok) throw new Error("Failed");
-    },
-    onSuccess: () => {
-      toast({ title: "Division updated" });
-      queryClient.invalidateQueries({ queryKey: ["roster", code] });
-    },
-    onError: () => toast({ title: "Failed to update division", variant: "destructive" }),
-  });
-
-  const addNoteMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/roster/${member.id}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ content: noteContent }),
-      });
-      if (!res.ok) throw new Error("Failed");
-    },
-    onSuccess: () => {
-      setNoteContent("");
-      refetchNotes();
-      toast({ title: "Note added" });
-    },
-    onError: () => toast({ title: "Failed to add note", variant: "destructive" }),
-  });
-
-  const deleteNoteMutation = useMutation({
-    mutationFn: async (noteId: string) => {
-      const res = await fetch(`/api/roster-notes/${noteId}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("Failed");
-    },
-    onSuccess: () => {
-      refetchNotes();
-      toast({ title: "Note deleted" });
-    },
-    onError: () => toast({ title: "Failed to delete note", variant: "destructive" }),
-  });
-
+function PlayerCardDialog({ member, deptColor, open, onOpenChange }: { member: RosterMember; deptColor: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   if (!member.user) return null;
   const displayName = member.user.displayName || member.user.username;
-  const notes = notesData?.notes || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-900 border-white/10 max-w-sm max-h-[85vh] overflow-y-auto" data-testid={`player-card-${member.user.discordId}`}>
+      <DialogContent className="bg-zinc-900 border-white/10 max-w-sm" data-testid={`player-card-${member.user.discordId}`}>
         <DialogHeader className="sr-only">
           <DialogTitle>{displayName}</DialogTitle>
           <DialogDescription>Player profile card</DialogDescription>
@@ -1243,82 +1077,12 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
               <p className="text-sm font-mono font-bold" style={{ color: deptColor }}>{member.qid}</p>
             </div>
           )}
-          {member.division && (
-            <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Division</p>
-              <p className="text-sm font-semibold" style={{ color: deptColor }}>{member.division}</p>
-            </div>
-          )}
         </div>
-
-        {showDivision && !member.id.startsWith("auto-") && (
-          <div className="mt-3 space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Assign Division</Label>
-            <div className="flex gap-2">
-              <Select value={divisionValue} onValueChange={(v) => { setDivisionValue(v); divisionMutation.mutate(v); }}>
-                <SelectTrigger className="flex-1 h-8 text-xs" data-testid="select-division">
-                  <SelectValue placeholder="Select division..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {POLICE_DIVISIONS.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-
         <Link href={`/profile/${member.user.discordId}`}>
           <Button className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-black gap-2" data-testid={`button-see-profile-${member.user.discordId}`}>
             <Users className="w-4 h-4" /> See Player Profile
           </Button>
         </Link>
-
-        {showNotes && !member.id.startsWith("auto-") && (
-          <div className="mt-4 border-t border-white/10 pt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5" /> Leadership Notes
-            </h4>
-            <div className="space-y-2 mb-3">
-              {notes.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">No notes yet.</p>
-              )}
-              {notes.map((note) => (
-                <div key={note.id} className="bg-zinc-800/60 rounded-md p-2.5 text-sm">
-                  <div className="flex justify-between items-start gap-2">
-                    <p className="text-xs whitespace-pre-wrap flex-1">{note.content}</p>
-                    <Button variant="ghost" size="icon" className="h-5 w-5 text-red-400 hover:text-red-300 shrink-0" onClick={() => deleteNoteMutation.mutate(note.id)} data-testid={`delete-note-${note.id}`}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1.5">
-                    {note.authorName} - {new Date(note.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <textarea
-                className="flex-1 bg-zinc-800 border border-white/10 rounded-md px-2.5 py-1.5 text-xs text-foreground min-h-[60px] resize-none"
-                placeholder="Add a note..."
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                data-testid="input-note"
-              />
-            </div>
-            <Button
-              size="sm"
-              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white text-xs"
-              disabled={!noteContent.trim() || addNoteMutation.isPending}
-              onClick={() => addNoteMutation.mutate()}
-              data-testid="button-add-note"
-            >
-              <Plus className="w-3 h-3 mr-1" /> Add Note
-            </Button>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );
@@ -1618,7 +1382,6 @@ interface AppForm {
   departmentCode: string;
   isActive: boolean;
   isWhitelist: boolean;
-  isOpen: boolean;
   rolesOnAccept: string | null;
   notifyRanks: string | null;
   createdAt: string;
@@ -1702,23 +1465,6 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
     },
   });
 
-  const toggleFormOpenMutation = useMutation({
-    mutationFn: async ({ formId, isOpen }: { formId: string; isOpen: boolean }) => {
-      const res = await fetch(`/api/forms/${formId}/toggle-open`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ isOpen }),
-      });
-      if (!res.ok) throw new Error("Failed");
-    },
-    onSuccess: () => {
-      toast({ title: "Form status updated" });
-      queryClient.invalidateQueries({ queryKey: ["forms", code] });
-    },
-    onError: () => toast({ title: "Failed to update form status", variant: "destructive" }),
-  });
-
   const deleteSubmissionMutation = useMutation({
     mutationFn: async (subId: string) => {
       const res = await fetch(`/api/submissions/${subId}`, { method: "DELETE", credentials: "include" });
@@ -1771,20 +1517,9 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
                   <div>
                     <span className="font-medium text-sm">{form.title}</span>
                     {form.isWhitelist && <Badge variant="outline" className="ml-2 text-[10px] border-orange-500/30 text-orange-400">Whitelist</Badge>}
-                    {form.isOpen === false && <Badge variant="outline" className="ml-2 text-[10px] border-red-500/30 text-red-400">Closed</Badge>}
                     {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-8 w-8 ${form.isOpen === false ? "text-red-400 hover:text-green-400" : "text-green-400 hover:text-red-400"}`}
-                      onClick={() => toggleFormOpenMutation.mutate({ formId: form.id, isOpen: form.isOpen === false })}
-                      title={form.isOpen === false ? "Open Form" : "Close Form"}
-                      data-testid={`button-toggle-form-${form.id}`}
-                    >
-                      {form.isOpen === false ? <Lock className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setManagersFormId(form.id); setManagersFormTitle(form.title); }} title="Manage Assignees" data-testid={`button-managers-form-${form.id}`}>
                       <UserCog className="w-4 h-4" />
                     </Button>
@@ -1810,23 +1545,12 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
           </CardHeader>
           <CardContent className="space-y-2">
             {forms.map((form) => (
-              <div
-                key={form.id}
-                className={`flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 transition-colors ${form.isOpen === false ? "opacity-60" : "hover:bg-zinc-800/60 cursor-pointer"}`}
-                onClick={() => { if (form.isOpen !== false) { setSelectedFormId(form.id); setView("fill-form"); } }}
-                data-testid={`form-apply-${form.id}`}
-              >
+              <div key={form.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors cursor-pointer" onClick={() => { setSelectedFormId(form.id); setView("fill-form"); }} data-testid={`form-apply-${form.id}`}>
                 <div>
                   <span className="font-medium text-sm">{form.title}</span>
-                  {form.isOpen === false && (
-                    <Badge variant="outline" className="ml-2 text-[10px] border-red-500/30 text-red-400 gap-1">
-                      <Lock className="w-3 h-3" /> Closed
-                    </Badge>
-                  )}
                   {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
-                  {form.isOpen === false && <p className="text-xs text-red-400/70 mt-0.5">This form is currently not accepting submissions.</p>}
                 </div>
-                {form.isOpen !== false && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </div>
             ))}
           </CardContent>
