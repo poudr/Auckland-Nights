@@ -440,6 +440,7 @@ export async function registerRoutes(
         user: { id: string; username: string; displayName: string | null; avatar: string | null; discordId: string; roles: string[] | null; createdAt: Date | null } | null;
         rank: typeof departmentRanks[0] | undefined;
         squadId?: string | null;
+        division?: string | null;
       };
 
       const rosterMap = new Map<string, RosterEntry>();
@@ -465,6 +466,7 @@ export async function registerRoutes(
                 user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
                 rank,
                 squadId: existing.squadId,
+                division: existing.division,
               });
             }
           } else {
@@ -481,6 +483,7 @@ export async function registerRoutes(
               user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
               rank,
               squadId: manual?.squadId || null,
+              division: manual?.division || null,
             });
           }
         }
@@ -906,6 +909,10 @@ export async function registerRoutes(
       const targetForm = await storage.getApplicationForm(formId);
       if (!targetForm || targetForm.departmentCode !== code) {
         return res.status(400).json({ error: "Invalid form for this department" });
+      }
+
+      if (targetForm.isOpen === false) {
+        return res.status(400).json({ error: "This form is currently closed and not accepting submissions" });
       }
 
       const userWebsiteRoles = user.websiteRoles || [];
@@ -1621,11 +1628,8 @@ export async function registerRoutes(
     const userRoles = req.user?.websiteRoles || [];
     const staffTier = req.user?.staffTier;
     
-    console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
-    
     // Directors, Executives, and Managers automatically get access to ALL department portals with leadership
     if (staffTier === "director" || staffTier === "executive" || staffTier === "manager") {
-      console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
     }
     
@@ -1927,6 +1931,109 @@ export async function registerRoutes(
       res.json({ member });
     } catch (error) {
       res.status(500).json({ error: "Failed to update callsign" });
+    }
+  });
+
+  // ============ ROSTER DIVISION (Police only) ============
+  app.put("/api/departments/:code/roster/:memberId/division", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
+      if (!isLeadership) return res.status(403).json({ error: "Leadership access required" });
+
+      const { POLICE_DIVISIONS } = await import("@shared/schema");
+      const division = req.body.division || null;
+      if (division && !POLICE_DIVISIONS.includes(division)) {
+        return res.status(400).json({ error: "Invalid division value" });
+      }
+      const member = await storage.updateRosterMember(req.params.memberId as string, { division });
+      res.json({ member });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update division" });
+    }
+  });
+
+  // ============ ROSTER NOTES ============
+  app.get("/api/roster/:rosterId/notes", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const rosterId = req.params.rosterId as string;
+      const rosterMember = await storage.getRosterMember(rosterId);
+      if (!rosterMember) return res.status(404).json({ error: "Roster member not found" });
+
+      const isTopTier = user.staffTier && ["director", "executive", "manager"].includes(user.staffTier);
+      const isLeadership = await isUserDepartmentLeadership(user, rosterMember.departmentCode);
+      if (!isTopTier && !isLeadership) return res.status(403).json({ error: "Access denied" });
+
+      const notes = await storage.getRosterNotes(rosterId);
+      const allUsers = await storage.getAllUsers();
+      const notesWithAuthors = notes.map(n => {
+        const author = allUsers.find(u => u.id === n.authorId);
+        return { ...n, authorName: author?.displayName || author?.username || "Unknown" };
+      });
+      res.json({ notes: notesWithAuthors });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch notes" });
+    }
+  });
+
+  app.post("/api/roster/:rosterId/notes", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const rosterId = req.params.rosterId as string;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
+
+      const rosterMember = await storage.getRosterMember(rosterId);
+      if (!rosterMember) return res.status(404).json({ error: "Roster member not found" });
+
+      const isTopTier = user.staffTier && ["director", "executive", "manager"].includes(user.staffTier);
+      const isLeadership = await isUserDepartmentLeadership(user, rosterMember.departmentCode);
+      if (!isTopTier && !isLeadership) return res.status(403).json({ error: "Access denied" });
+
+      const note = await storage.createRosterNote({
+        rosterId,
+        departmentCode: rosterMember.departmentCode,
+        authorId: user.id,
+        content: content.trim(),
+      });
+      res.json({ note: { ...note, authorName: user.displayName || user.username } });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create note" });
+    }
+  });
+
+  app.delete("/api/roster/:rosterId/notes/:noteId", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const rosterId = req.params.rosterId as string;
+      const rosterMember = await storage.getRosterMember(rosterId);
+      if (!rosterMember) return res.status(404).json({ error: "Roster member not found" });
+
+      const isTopTier = user.staffTier && ["director", "executive", "manager"].includes(user.staffTier);
+      const isLeadership = await isUserDepartmentLeadership(user, rosterMember.departmentCode);
+      if (!isTopTier && !isLeadership) return res.status(403).json({ error: "Access denied" });
+
+      await storage.deleteRosterNote(req.params.noteId as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete note" });
+    }
+  });
+
+  // ============ APPLICATION FORM OPEN/CLOSE ============
+  app.patch("/api/forms/:id/toggle", isAuthenticated, async (req, res) => {
+    try {
+      const form = await storage.getApplicationForm(req.params.id as string);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      const isLeadership = await isUserDepartmentLeadership(req.user!, form.departmentCode);
+      if (!isLeadership) return res.status(403).json({ error: "Leadership access required" });
+
+      const updated = await storage.updateApplicationForm(form.id, { isOpen: !form.isOpen });
+      res.json({ form: updated });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to toggle form" });
     }
   });
 

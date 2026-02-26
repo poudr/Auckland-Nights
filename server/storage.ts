@@ -23,8 +23,9 @@ import {
   type SupportFaq, type InsertSupportFaq,
   type AuditLog, type InsertAuditLog,
   type FormManager, type InsertFormManager,
+  type RosterNote, type InsertRosterNote,
   users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads,
-  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs, formManagers
+  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs, formManagers, rosterNotes
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
@@ -188,6 +189,11 @@ export interface IStorage {
   addFormManager(manager: InsertFormManager): Promise<FormManager>;
   removeFormManager(formId: string, userId: string): Promise<void>;
   isFormManager(formId: string, userId: string): Promise<boolean>;
+
+  // Roster Notes
+  getRosterNotes(rosterId: string): Promise<RosterNote[]>;
+  createRosterNote(note: InsertRosterNote): Promise<RosterNote>;
+  deleteRosterNote(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -784,6 +790,20 @@ export class DatabaseStorage implements IStorage {
   async isFormManager(formId: string, userId: string): Promise<boolean> {
     const [result] = await db.select().from(formManagers).where(and(eq(formManagers.formId, formId), eq(formManagers.userId, userId)));
     return !!result;
+  }
+
+  // ============ ROSTER NOTES ============
+  async getRosterNotes(rosterId: string): Promise<RosterNote[]> {
+    return await db.select().from(rosterNotes).where(eq(rosterNotes.rosterId, rosterId)).orderBy(desc(rosterNotes.createdAt));
+  }
+
+  async createRosterNote(note: InsertRosterNote): Promise<RosterNote> {
+    const [created] = await db.insert(rosterNotes).values(note).returning();
+    return created;
+  }
+
+  async deleteRosterNote(id: string): Promise<void> {
+    await db.delete(rosterNotes).where(eq(rosterNotes.id, id));
   }
 }
 

@@ -83,6 +83,7 @@ export const rosterMembers = pgTable("roster_members", {
   callsignNumber: integer("callsign_number"),
   qid: text("qid"),
   squadId: varchar("squad_id"),
+  division: text("division"),
   isActive: boolean("is_active").default(true),
   joinedAt: timestamp("joined_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -103,6 +104,7 @@ export const applicationForms = pgTable("application_forms", {
   title: text("title").notNull(),
   description: text("description"),
   isActive: boolean("is_active").default(true),
+  isOpen: boolean("is_open").default(true),
   isWhitelist: boolean("is_whitelist").default(false),
   rolesOnAccept: text("roles_on_accept"),
   notifyRanks: text("notify_ranks"),
@@ -471,6 +473,27 @@ export const insertFormManagerSchema = createInsertSchema(formManagers).omit({
 });
 export type InsertFormManager = z.infer<typeof insertFormManagerSchema>;
 export type FormManager = typeof formManagers.$inferSelect;
+
+// ============ ROSTER NOTES ============
+export const rosterNotes = pgTable("roster_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rosterId: varchar("roster_id").notNull(),
+  departmentCode: text("department_code").notNull(),
+  authorId: varchar("author_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRosterNoteSchema = createInsertSchema(rosterNotes).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRosterNote = z.infer<typeof insertRosterNoteSchema>;
+export type RosterNote = typeof rosterNotes.$inferSelect;
+
+// ============ POLICE DIVISIONS ============
+export const POLICE_DIVISIONS = ["PST", "RPT", "CIB", "Dogs Squad"] as const;
+export type PoliceDivision = typeof POLICE_DIVISIONS[number];
 
 // ============ STAFF HIERARCHY (for Meet the Team) ============
 export const STAFF_HIERARCHY = [
