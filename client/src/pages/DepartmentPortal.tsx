@@ -553,6 +553,8 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
     enabled: code === "aos",
   });
 
+  const [rosterSubTab, setRosterSubTab] = useState<"roster" | "division">("roster");
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -560,8 +562,6 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
       </div>
     );
   }
-
-  const [rosterSubTab, setRosterSubTab] = useState<"roster" | "division">("roster");
 
   const roster = data?.roster || [];
   const allRanks = data?.ranks || [];
