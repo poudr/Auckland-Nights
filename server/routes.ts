@@ -4,7 +4,9 @@ import passport from "passport";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hasPermission, meetsStaffTier } from "./auth";
 import { seedDatabase } from "./seed";
-import { STAFF_HIERARCHY } from "@shared/schema";
+import { STAFF_HIERARCHY, applicationForms } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 function generateNextQid(existingQids: Set<string>): string {
@@ -436,6 +438,7 @@ export async function registerRoutes(
         callsign: string | null;
         callsignNumber: number | null;
         qid: string | null;
+        division: string | null;
         isActive: boolean;
         user: { id: string; username: string; displayName: string | null; avatar: string | null; discordId: string; roles: string[] | null; createdAt: Date | null } | null;
         rank: typeof departmentRanks[0] | undefined;
@@ -461,6 +464,7 @@ export async function registerRoutes(
                 callsign: existing.callsign,
                 callsignNumber: existing.callsignNumber,
                 qid: existing.qid,
+                division: existing.division,
                 isActive: true,
                 user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
                 rank,
@@ -477,6 +481,7 @@ export async function registerRoutes(
               callsign: manual?.callsign || null,
               callsignNumber: manual?.callsignNumber || null,
               qid: manual?.qid || null,
+              division: manual?.division || null,
               isActive: true,
               user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
               rank,
@@ -1268,6 +1273,128 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to remove form manager" });
+    }
+  });
+
+  // ============ ROSTER DIVISION ROUTES ============
+
+  app.put("/api/roster/:id/division", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive"].includes(tier)) {
+        return res.status(403).json({ error: "Only Director/Executive can assign divisions" });
+      }
+      const member = await storage.getRosterMember(req.params.id);
+      if (!member || member.departmentCode !== "police") {
+        return res.status(404).json({ error: "Police roster member not found" });
+      }
+      const { division } = req.body;
+      const updated = await storage.updateRosterMember(req.params.id, { division: division || null });
+      res.json({ success: true, member: updated });
+    } catch (error) {
+      console.error("Update division error:", error);
+      res.status(500).json({ error: "Failed to update division" });
+    }
+  });
+
+  // ============ ROSTER NOTES ROUTES ============
+
+  app.get("/api/roster/:id/notes", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const rosterMember = await storage.getRosterMember(req.params.id);
+      if (!rosterMember || rosterMember.departmentCode !== "police") {
+        return res.status(404).json({ error: "Police roster member not found" });
+      }
+      const notes = await storage.getRosterNotes(req.params.id, "police");
+      const authorIds = [...new Set(notes.map(n => n.authorId))];
+      const authors: Record<string, any> = {};
+      for (const aid of authorIds) {
+        const u = await storage.getUser(aid);
+        if (u) authors[aid] = { name: u.displayName || u.username, avatar: u.avatar, discordId: u.discordId };
+      }
+      res.json({
+        notes: notes.map(n => ({
+          id: n.id,
+          content: n.content,
+          authorName: authors[n.authorId]?.name || "Unknown",
+          authorAvatar: authors[n.authorId]?.avatar || null,
+          authorDiscordId: authors[n.authorId]?.discordId || "",
+          createdAt: n.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error("Get notes error:", error);
+      res.status(500).json({ error: "Failed to get notes" });
+    }
+  });
+
+  app.post("/api/roster/:id/notes", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const rosterMember = await storage.getRosterMember(req.params.id);
+      if (!rosterMember || rosterMember.departmentCode !== "police") {
+        return res.status(404).json({ error: "Police roster member not found" });
+      }
+      const { content } = req.body;
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: "Content required" });
+      }
+      const note = await storage.createRosterNote({
+        rosterId: req.params.id,
+        departmentCode: "police",
+        authorId: user.id,
+        content: content.trim(),
+      });
+      res.json({ success: true, note });
+    } catch (error) {
+      console.error("Create note error:", error);
+      res.status(500).json({ error: "Failed to create note" });
+    }
+  });
+
+  app.delete("/api/roster-notes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      await storage.deleteRosterNote(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete note error:", error);
+      res.status(500).json({ error: "Failed to delete note" });
+    }
+  });
+
+  // ============ FORM TOGGLE OPEN/CLOSE ============
+
+  app.patch("/api/forms/:id/toggle-open", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const { isOpen } = req.body;
+      const [updated] = await db.update(applicationForms)
+        .set({ isOpen: !!isOpen })
+        .where(eq(applicationForms.id, req.params.id))
+        .returning();
+      res.json({ success: true, form: updated });
+    } catch (error) {
+      console.error("Toggle form error:", error);
+      res.status(500).json({ error: "Failed to toggle form" });
     }
   });
 
