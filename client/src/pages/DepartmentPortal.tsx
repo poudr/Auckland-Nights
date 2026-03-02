@@ -1077,7 +1077,7 @@ function EmsAtpRow({ member, rank, deptColor, csoRoleId }: { member: RosterMembe
 }
 
 function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCode }: { member: RosterMember; deptColor: string; open: boolean; onOpenChange: (open: boolean) => void; departmentCode?: string }) {
-  const { user: currentUser } = useUser();
+  const { data: currentUser } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [noteContent, setNoteContent] = useState("");
