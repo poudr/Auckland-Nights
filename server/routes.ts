@@ -1282,8 +1282,10 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      if (!tier || !["director", "executive"].includes(tier)) {
-        return res.status(403).json({ error: "Only Director/Executive can assign divisions" });
+      const isStaffLeader = tier && ["director", "executive"].includes(tier);
+      const isPoliceLeadership = await isUserDepartmentLeadership(user, "police");
+      if (!isStaffLeader && !isPoliceLeadership) {
+        return res.status(403).json({ error: "Only Director/Executive or Police leadership can assign divisions" });
       }
       const member = await storage.getRosterMember(req.params.id);
       if (!member || member.departmentCode !== "police") {
@@ -1304,7 +1306,9 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const isStaffLeader = tier && ["director", "executive", "manager"].includes(tier);
+      const isPoliceLeadership = await isUserDepartmentLeadership(user, "police");
+      if (!isStaffLeader && !isPoliceLeadership) {
         return res.status(403).json({ error: "Forbidden" });
       }
       const rosterMember = await storage.getRosterMember(req.params.id);
@@ -1338,7 +1342,9 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const isStaffLeader = tier && ["director", "executive", "manager"].includes(tier);
+      const isPoliceLeadership = await isUserDepartmentLeadership(user, "police");
+      if (!isStaffLeader && !isPoliceLeadership) {
         return res.status(403).json({ error: "Forbidden" });
       }
       const rosterMember = await storage.getRosterMember(req.params.id);
@@ -1366,7 +1372,9 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const isStaffLeader = tier && ["director", "executive", "manager"].includes(tier);
+      const isPoliceLeadership = await isUserDepartmentLeadership(user, "police");
+      if (!isStaffLeader && !isPoliceLeadership) {
         return res.status(403).json({ error: "Forbidden" });
       }
       await storage.deleteRosterNote(req.params.id);

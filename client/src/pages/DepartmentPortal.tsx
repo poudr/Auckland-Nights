@@ -1088,11 +1088,22 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
     setDivisionValue(member.division || "");
   }, [member.division, member.id]);
 
-  const isLeadershipUser = currentUser?.staffTier && ["director", "executive", "manager"].includes(currentUser.staffTier);
-  const isDirectorOrExec = currentUser?.staffTier && ["director", "executive"].includes(currentUser.staffTier);
+  const { data: accessData } = useQuery({
+    queryKey: ["checkAccess", "police"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/check-access/police", { credentials: "include" });
+      if (!res.ok) return { isLeadership: false };
+      return res.json() as Promise<{ isLeadership: boolean }>;
+    },
+    enabled: !!currentUser && code === "police",
+  });
+
+  const isStaffLeader = currentUser?.staffTier && ["director", "executive", "manager"].includes(currentUser.staffTier);
+  const isStaffDirectorOrExec = currentUser?.staffTier && ["director", "executive"].includes(currentUser.staffTier);
+  const isPoliceLeadership = accessData?.isLeadership || false;
   const isPolice = code === "police";
-  const showNotes = isPolice && isLeadershipUser;
-  const showDivision = isPolice && isDirectorOrExec;
+  const showNotes = isPolice && (!!isStaffLeader || isPoliceLeadership);
+  const showDivision = isPolice && (!!isStaffDirectorOrExec || isPoliceLeadership);
 
   const { data: notesData, refetch: refetchNotes } = useQuery({
     queryKey: ["rosterNotes", member.id],
