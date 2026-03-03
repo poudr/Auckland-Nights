@@ -1309,18 +1309,21 @@ export async function registerRoutes(
       const memberId = req.params.id;
 
       if (memberId.startsWith("auto-")) {
-        const parts = memberId.replace("auto-", "").split("-");
-        const userId = parts[0];
-        const rankId = parts.slice(1).join("-");
-        if (!userId) return res.status(400).json({ error: "Invalid auto member ID" });
+        const raw = memberId.slice(5);
+        const userId = raw.substring(0, 36);
+        const rankId = raw.substring(37);
+        const deptCode = req.query.departmentCode as string || "";
+        if (!userId || userId.length !== 36 || !deptCode) {
+          return res.status(400).json({ error: "Invalid auto member ID or missing departmentCode" });
+        }
 
-        const existing = await storage.getRosterMemberByUser(userId, req.query.departmentCode as string || "");
+        const existing = await storage.getRosterMemberByUser(userId, deptCode);
         if (existing) {
           await storage.updateRosterMember(existing.id, { isActive: false });
         } else {
           await storage.createRosterMember({
             userId,
-            departmentCode: req.query.departmentCode as string || "",
+            departmentCode: deptCode,
             rankId,
             isActive: false,
           });
