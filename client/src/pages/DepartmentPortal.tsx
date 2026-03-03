@@ -879,7 +879,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
             style={{ gridTemplateColumns: "1fr auto auto auto" }}
           >
             <div>Name</div>
-            <div className="text-center px-2">Rank</div>
+            <div className="text-center px-2">PST</div>
             <div className="text-center px-2 hidden sm:block">Callsign</div>
             <div className="text-center px-2 hidden sm:block">CSO</div>
           </div>
@@ -1163,6 +1163,19 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
     onError: () => toast({ title: "Failed to delete note", variant: "destructive" }),
   });
 
+  const deleteRosterMemberMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/roster/${member.id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Member removed from roster" });
+      queryClient.invalidateQueries({ queryKey: ["roster"] });
+      onOpenChange(false);
+    },
+    onError: () => toast({ title: "Failed to remove member", variant: "destructive" }),
+  });
+
   if (!member.user) return null;
   const displayName = member.user.displayName || member.user.username;
   const notes = notesData?.notes || [];
@@ -1228,6 +1241,22 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
             <Users className="w-4 h-4" /> See Player Profile
           </Button>
         </Link>
+
+        {!!isStaffDirectorOrExec && !member.id.startsWith("auto-") && (
+          <Button
+            variant="outline"
+            className="w-full mt-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 gap-2"
+            onClick={() => {
+              if (confirm(`Are you sure you want to remove ${displayName} from the roster?`)) {
+                deleteRosterMemberMutation.mutate();
+              }
+            }}
+            disabled={deleteRosterMemberMutation.isPending}
+            data-testid={`button-delete-roster-${member.user.discordId}`}
+          >
+            <Trash2 className="w-4 h-4" /> Remove from Roster
+          </Button>
+        )}
 
         {showNotes && !member.id.startsWith("auto-") && (
           <div className="mt-4 border-t border-white/10 pt-4">
@@ -2999,6 +3028,10 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
   const [accessRoleId, setAccessRoleId] = useState("");
 
   const isAos = code === "aos";
+  const isEms = code === "ems";
+
+  const [editingCsoRole, setEditingCsoRole] = useState(false);
+  const [csoRoleId, setCsoRoleId] = useState("");
 
   const { data: ranksData, isLoading } = useQuery({
     queryKey: ["departmentRanks", code],
@@ -3019,11 +3052,28 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     },
   });
 
+  const { data: csoRoleData } = useQuery({
+    queryKey: ["emsCsoRole"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/ems_cso_role_id");
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.value || null;
+    },
+    enabled: isEms,
+  });
+
   useEffect(() => {
     if (accessRoleData) {
       setAccessRoleId(accessRoleData);
     }
   }, [accessRoleData]);
+
+  useEffect(() => {
+    if (csoRoleData) {
+      setCsoRoleId(csoRoleData);
+    }
+  }, [csoRoleData]);
 
   const createRankMutation = useMutation({
     mutationFn: async (rankData: typeof newRank) => {
@@ -3131,6 +3181,25 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     },
   });
 
+  const updateCsoRoleMutation = useMutation({
+    mutationFn: async (newRoleId: string) => {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: "ems_cso_role_id", value: newRoleId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "CSO Role Updated" });
+      setEditingCsoRole(false);
+      queryClient.invalidateQueries({ queryKey: ["emsCsoRole"] });
+      queryClient.invalidateQueries({ queryKey: ["roster", "ems"] });
+    },
+  });
+
   if (isLoading) {
     return <Skeleton className="h-96" />;
   }
@@ -3199,6 +3268,70 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
           </div>
         </CardContent>
       </Card>
+
+      {isEms && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div>
+                <h3 className="font-semibold" style={{ color: deptColor }}>CSO Discord Role</h3>
+                <p className="text-xs text-muted-foreground">The Discord Role ID that corresponds to the CSO column in the roster</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {editingCsoRole ? (
+                  <>
+                    <Input
+                      placeholder="Discord Role ID"
+                      value={csoRoleId}
+                      onChange={(e) => setCsoRoleId(e.target.value)}
+                      className="h-8 text-sm w-56"
+                      data-testid="input-cso-role-id"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8"
+                      onClick={() => updateCsoRoleMutation.mutate(csoRoleId)}
+                      disabled={updateCsoRoleMutation.isPending}
+                      data-testid="button-save-cso-role"
+                    >
+                      <Check className="w-3 h-3 mr-1" /> Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => { setEditingCsoRole(false); setCsoRoleId(csoRoleData || ""); }}
+                      data-testid="button-cancel-cso-role"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-mono">
+                      {csoRoleData ? (
+                        <span className="text-green-400">{csoRoleData}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Not configured</span>
+                      )}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setEditingCsoRole(true)}
+                      data-testid="button-edit-cso-role"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-center justify-between">
         <div>

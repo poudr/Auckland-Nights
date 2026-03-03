@@ -1297,6 +1297,25 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/roster/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      if (!tier || !["director", "executive"].includes(tier)) {
+        return res.status(403).json({ error: "Only Directors and Executives can remove roster members" });
+      }
+      const member = await storage.getRosterMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ error: "Roster member not found" });
+      }
+      await storage.deleteRosterMember(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete roster member error:", error);
+      res.status(500).json({ error: "Failed to remove roster member" });
+    }
+  });
+
   // ============ ROSTER NOTES ROUTES ============
 
   app.get("/api/roster/:id/notes", isAuthenticated, async (req, res) => {

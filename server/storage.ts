@@ -58,6 +58,7 @@ export interface IStorage {
   getRosterMemberByUser(userId: string, departmentCode: string): Promise<RosterMember | undefined>;
   createRosterMember(member: InsertRosterMember): Promise<RosterMember>;
   updateRosterMember(id: string, updates: Partial<InsertRosterMember>): Promise<RosterMember | undefined>;
+  deleteRosterMember(id: string): Promise<void>;
   getNextCallsignNumber(departmentCode: string, rankId: string): Promise<number>;
   
   // Application Forms
@@ -300,6 +301,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(rosterMembers.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteRosterMember(id: string): Promise<void> {
+    await db.delete(rosterMembers).where(eq(rosterMembers.id, id));
   }
 
   async getNextCallsignNumber(departmentCode: string, rankId: string): Promise<number> {
