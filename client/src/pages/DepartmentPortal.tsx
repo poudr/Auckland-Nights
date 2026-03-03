@@ -622,7 +622,7 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
             >
               <div>#</div>
               <div>Member</div>
-              <div className="text-center px-2">Rank</div>
+              <div className="text-center px-2">{isPolice ? "Callsign" : "Rank"}</div>
               {isPolice && <div className="text-center px-2 hidden sm:block">Division</div>}
               {isPolice && <div className="text-center px-2">QID</div>}
             </div>
@@ -1082,28 +1082,33 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
   const queryClient = useQueryClient();
   const [noteContent, setNoteContent] = useState("");
   const [divisionValue, setDivisionValue] = useState(member.division || "");
+  const [editingCallsign, setEditingCallsign] = useState(false);
+  const [callsignValue, setCallsignValue] = useState(member.callsign || "");
   const code = departmentCode || member.departmentCode || "unknown";
 
   useEffect(() => {
     setDivisionValue(member.division || "");
-  }, [member.division, member.id]);
+    setCallsignValue(member.callsign || "");
+    setEditingCallsign(false);
+  }, [member.division, member.callsign, member.id]);
 
   const { data: accessData } = useQuery({
-    queryKey: ["checkAccess", "police"],
+    queryKey: ["checkAccess", code],
     queryFn: async () => {
-      const res = await fetch("/api/user/check-access/police", { credentials: "include" });
+      const res = await fetch(`/api/user/check-access/${code}`, { credentials: "include" });
       if (!res.ok) return { isLeadership: false };
       return res.json() as Promise<{ isLeadership: boolean }>;
     },
-    enabled: !!currentUser && code === "police",
+    enabled: !!currentUser,
   });
 
   const isStaffLeader = currentUser?.staffTier && ["director", "executive", "manager"].includes(currentUser.staffTier);
   const isStaffDirectorOrExec = currentUser?.staffTier && ["director", "executive"].includes(currentUser.staffTier);
-  const isPoliceLeadership = accessData?.isLeadership || false;
+  const isDeptLeadership = accessData?.isLeadership || false;
   const isPolice = code === "police";
-  const showNotes = isPolice && (!!isStaffLeader || isPoliceLeadership);
-  const showDivision = isPolice && (!!isStaffDirectorOrExec || isPoliceLeadership);
+  const canEditCallsign = !!isStaffLeader || isDeptLeadership;
+  const showNotes = isPolice && (!!isStaffLeader || isDeptLeadership);
+  const showDivision = isPolice && (!!isStaffDirectorOrExec || isDeptLeadership);
 
   const { data: notesData, refetch: refetchNotes } = useQuery({
     queryKey: ["rosterNotes", member.id],
@@ -1131,6 +1136,24 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
       queryClient.invalidateQueries({ queryKey: ["roster", code] });
     },
     onError: () => toast({ title: "Failed to update division", variant: "destructive" }),
+  });
+
+  const callsignMutation = useMutation({
+    mutationFn: async (callsign: string) => {
+      const res = await fetch(`/api/departments/${code}/roster/${member.id}/callsign`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ callsign, userId: member.userId, rankId: member.rankId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Callsign updated" });
+      setEditingCallsign(false);
+      queryClient.invalidateQueries({ queryKey: ["roster", code] });
+    },
+    onError: () => toast({ title: "Failed to update callsign", variant: "destructive" }),
   });
 
   const addNoteMutation = useMutation({
@@ -1199,10 +1222,33 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Rank</p>
             <p className="text-sm font-semibold" style={{ color: deptColor }}>{member.rank?.name || "-"}</p>
           </div>
-          {member.callsign && (
+          {(member.callsign || canEditCallsign) && (
             <div className="bg-zinc-800/60 rounded-lg p-3 text-center">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Callsign</p>
-              <p className="text-sm font-mono font-bold" style={{ color: deptColor }}>{member.callsign}</p>
+              {canEditCallsign && editingCallsign ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <Input
+                    value={callsignValue}
+                    onChange={(e) => setCallsignValue(e.target.value)}
+                    className="h-7 text-xs font-mono text-center"
+                    placeholder="e.g. ACP01G"
+                    data-testid="input-callsign"
+                    autoFocus
+                  />
+                  <Button size="icon" className="h-7 w-7 shrink-0" onClick={() => callsignMutation.mutate(callsignValue)} disabled={callsignMutation.isPending} data-testid="button-save-callsign">
+                    <Check className="w-3 h-3" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => { setEditingCallsign(false); setCallsignValue(member.callsign || ""); }} data-testid="button-cancel-callsign">
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : canEditCallsign ? (
+                <p className="text-sm font-mono font-bold cursor-pointer hover:opacity-80" style={{ color: deptColor }} onClick={() => setEditingCallsign(true)} data-testid="text-callsign-editable">
+                  {member.callsign || <span className="text-muted-foreground text-xs italic">Click to set</span>}
+                </p>
+              ) : (
+                <p className="text-sm font-mono font-bold" style={{ color: deptColor }}>{member.callsign || "-"}</p>
+              )}
             </div>
           )}
           {member.qid && (
@@ -1398,9 +1444,17 @@ function RosterTableRow({ member, deptColor, index, isPolice }: { member: Roster
           <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
         </div>
         <div className="text-center px-2 shrink-0">
-          <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {member.rank?.name}
-          </span>
+          {isPolice ? (
+            member.callsign ? (
+              <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">-</span>
+            )
+          ) : (
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
+              {member.rank?.name}
+            </span>
+          )}
         </div>
         {isPolice && (
           <div className="text-center px-2 shrink-0 hidden sm:block">
