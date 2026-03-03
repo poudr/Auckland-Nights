@@ -851,12 +851,13 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
       {leadershipGroups.length > 0 && (
         <div className="rounded-lg border border-white/5 overflow-hidden">
           <div className="grid items-center gap-2 px-4 py-2 bg-zinc-900/60 border-b border-white/10 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-            style={{ gridTemplateColumns: "2.5rem 1fr auto auto" }}
+            style={{ gridTemplateColumns: "2.5rem 1fr auto auto auto" }}
           >
             <div>#</div>
             <div>Member</div>
             <div className="text-center px-2">ATP</div>
             <div className="text-center px-2 hidden sm:block">Callsign</div>
+            <div className="text-center px-2 hidden sm:block">CSO</div>
           </div>
           {leadershipGroups.map(({ rank, members }) => (
             <div key={rank.id}>
@@ -866,7 +867,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
                 <span className="text-[10px] text-muted-foreground">{members.length}</span>
               </div>
               {members.map((member, idx) => (
-                <EmsLeadershipRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} />
+                <EmsLeadershipRow key={member.id} member={member} deptColor={deptColor} index={idx + 1} csoRoleId={csoRoleId} />
               ))}
             </div>
           ))}
@@ -941,9 +942,10 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
   );
 }
 
-function EmsLeadershipRow({ member, deptColor, index }: { member: RosterMember; deptColor: string; index: number }) {
+function EmsLeadershipRow({ member, deptColor, index, csoRoleId }: { member: RosterMember; deptColor: string; index: number; csoRoleId: string | null }) {
   const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
+  const hasCso = csoRoleId && member.user.roles && member.user.roles.includes(csoRoleId);
 
   return (
     <>
@@ -951,7 +953,7 @@ function EmsLeadershipRow({ member, deptColor, index }: { member: RosterMember; 
         role="button"
         tabIndex={0}
         className="grid items-center gap-2 px-2 sm:px-4 py-2 border-b border-white/5 last:border-0 hover:bg-zinc-900/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
-        style={{ gridTemplateColumns: "2.5rem 1fr auto auto" }}
+        style={{ gridTemplateColumns: "2.5rem 1fr auto auto auto" }}
         onClick={() => setShowCard(true)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowCard(true); } }}
         data-testid={`roster-row-${member.user.discordId}`}
@@ -973,6 +975,17 @@ function EmsLeadershipRow({ member, deptColor, index }: { member: RosterMember; 
             <span className="text-xs font-mono font-bold whitespace-nowrap" style={{ color: deptColor }}>{member.callsign}</span>
           ) : (
             <span className="text-xs text-muted-foreground">-</span>
+          )}
+        </div>
+        <div className="text-center px-2 shrink-0 hidden sm:block">
+          {hasCso ? (
+            <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-500/20" data-testid={`cso-check-${member.user.discordId}`}>
+              <Check className="w-3 h-3 text-green-400" />
+            </div>
+          ) : (
+            <div className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-500/20" data-testid={`cso-cross-${member.user.discordId}`}>
+              <X className="w-3 h-3 text-red-400" />
+            </div>
           )}
         </div>
       </div>
