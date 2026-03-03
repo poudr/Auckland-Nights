@@ -105,6 +105,7 @@ export const applicationForms = pgTable("application_forms", {
   description: text("description"),
   isActive: boolean("is_active").default(true),
   isWhitelist: boolean("is_whitelist").default(false),
+  isOpen: boolean("is_open").default(true),
   rolesOnAccept: text("roles_on_accept"),
   notifyRanks: text("notify_ranks"),
   createdBy: varchar("created_by"),

@@ -913,11 +913,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid form for this department" });
       }
 
-      const userWebsiteRoles = user.websiteRoles || [];
-      const hasDeptAccess = userWebsiteRoles.includes(code) ||
-        user.staffTier === "director" || user.staffTier === "executive";
-      if (!hasDeptAccess && !targetForm.isWhitelist) {
-        return res.status(403).json({ error: "You can only submit whitelist applications for departments you don't have access to" });
+      if (targetForm.isOpen === false) {
+        return res.status(400).json({ error: "This form is currently closed and not accepting submissions" });
       }
 
       const submission = await storage.createSubmission({
@@ -1391,9 +1388,19 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      if (!tier || !["director", "executive", "manager"].includes(tier)) {
+      const isTopTier = tier && ["director", "executive", "manager"].includes(tier);
+
+      const form = await storage.getApplicationForm(req.params.id);
+      if (!form) return res.status(404).json({ error: "Form not found" });
+
+      let hasFormAccess = isTopTier;
+      if (!hasFormAccess && form.departmentCode) {
+        hasFormAccess = await isUserDepartmentLeadership(user, form.departmentCode);
+      }
+      if (!hasFormAccess) {
         return res.status(403).json({ error: "Forbidden" });
       }
+
       const { isOpen } = req.body;
       const [updated] = await db.update(applicationForms)
         .set({ isOpen: !!isOpen })

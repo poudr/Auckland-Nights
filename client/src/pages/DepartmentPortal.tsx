@@ -1645,6 +1645,7 @@ interface AppForm {
   departmentCode: string;
   isActive: boolean;
   isWhitelist: boolean;
+  isOpen: boolean;
   rolesOnAccept: string | null;
   notifyRanks: string | null;
   createdAt: string;
@@ -1728,6 +1729,21 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
     },
   });
 
+  const toggleFormOpenMutation = useMutation({
+    mutationFn: async ({ formId, isOpen }: { formId: string; isOpen: boolean }) => {
+      const res = await fetch(`/api/forms/${formId}/toggle-open`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ isOpen }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forms", code] });
+    },
+  });
+
   const deleteSubmissionMutation = useMutation({
     mutationFn: async (subId: string) => {
       const res = await fetch(`/api/submissions/${subId}`, { method: "DELETE", credentials: "include" });
@@ -1780,9 +1796,20 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
                   <div>
                     <span className="font-medium text-sm">{form.title}</span>
                     {form.isWhitelist && <Badge variant="outline" className="ml-2 text-[10px] border-orange-500/30 text-orange-400">Whitelist</Badge>}
+                    {form.isOpen === false && <Badge variant="outline" className="ml-2 text-[10px] border-red-500/30 text-red-400">Closed</Badge>}
                     {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
                   </div>
                   <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 ${form.isOpen === false ? "text-red-400 hover:text-green-400" : "text-green-400 hover:text-red-400"}`}
+                      onClick={() => toggleFormOpenMutation.mutate({ formId: form.id, isOpen: form.isOpen === false })}
+                      title={form.isOpen === false ? "Open Form" : "Close Form"}
+                      data-testid={`button-toggle-form-${form.id}`}
+                    >
+                      {form.isOpen === false ? <Lock className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setManagersFormId(form.id); setManagersFormTitle(form.title); }} title="Manage Assignees" data-testid={`button-managers-form-${form.id}`}>
                       <UserCog className="w-4 h-4" />
                     </Button>
@@ -1800,7 +1827,7 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
         </Card>
       )}
 
-      {!isLeadership && forms.length > 0 && (
+      {forms.length > 0 && (
         <Card className="bg-zinc-900/40 border-white/5">
           <CardHeader>
             <CardTitle>Apply to This Department</CardTitle>
@@ -1808,12 +1835,17 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
           </CardHeader>
           <CardContent className="space-y-2">
             {forms.map((form) => (
-              <div key={form.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors cursor-pointer" onClick={() => { setSelectedFormId(form.id); setView("fill-form"); }} data-testid={`form-apply-${form.id}`}>
+              <div key={form.id} className={`flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 transition-colors ${form.isOpen === false ? "opacity-60" : "hover:bg-zinc-800/60 cursor-pointer"}`} onClick={() => { if (form.isOpen !== false) { setSelectedFormId(form.id); setView("fill-form"); } }} data-testid={`form-apply-${form.id}`}>
                 <div>
                   <span className="font-medium text-sm">{form.title}</span>
+                  {form.isOpen === false && <Badge variant="outline" className="ml-2 text-[10px] border-red-500/30 text-red-400">Currently Closed</Badge>}
                   {form.description && <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>}
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                {form.isOpen !== false ? (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <Lock className="w-4 h-4 text-red-400" />
+                )}
               </div>
             ))}
           </CardContent>
@@ -1875,7 +1907,7 @@ function ApplicationsTab({ code, user, isLeadership, deepLinkSubmissionId }: { c
         </CardContent>
       </Card>
 
-      {!isLeadership && forms.length === 0 && submissions.length === 0 && (
+      {forms.length === 0 && submissions.length === 0 && (
         <Card className="bg-zinc-900/40 border-white/5">
           <CardContent className="py-8">
             <div className="text-center">
