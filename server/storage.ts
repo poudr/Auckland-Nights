@@ -279,6 +279,11 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(rosterMembers.departmentCode, departmentCode), eq(rosterMembers.isActive, true)));
   }
 
+  async getAllRosterByDepartment(departmentCode: string): Promise<RosterMember[]> {
+    return await db.select().from(rosterMembers)
+      .where(eq(rosterMembers.departmentCode, departmentCode));
+  }
+
   async getRosterMember(id: string): Promise<RosterMember | undefined> {
     const [member] = await db.select().from(rosterMembers).where(eq(rosterMembers.id, id));
     return member;

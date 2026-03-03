@@ -424,7 +424,7 @@ export async function registerRoutes(
       const code = req.params.code as string;
       const departmentRanks = await storage.getRanksByDepartment(code);
       const allUsers = await storage.getAllUsers();
-      const manualRoster = await storage.getRosterByDepartment(code);
+      const manualRoster = await storage.getAllRosterByDepartment(code);
 
       const ranksWithDiscordRole = departmentRanks
         .filter(r => r.discordRoleId)
@@ -453,6 +453,9 @@ export async function registerRoutes(
         );
 
         for (const user of matchingUsers) {
+          const manual = manualRoster.find(m => m.userId === user.id);
+          if (manual && !manual.isActive) continue;
+
           if (rosterMap.has(user.id)) {
             const existing = rosterMap.get(user.id)!;
             if (rank.priority < (existing.rank?.priority || 999)) {
@@ -472,7 +475,6 @@ export async function registerRoutes(
               });
             }
           } else {
-            const manual = manualRoster.find(m => m.userId === user.id);
             rosterMap.set(user.id, {
               id: manual?.id || `auto-${user.id}-${rank.id}`,
               userId: user.id,
