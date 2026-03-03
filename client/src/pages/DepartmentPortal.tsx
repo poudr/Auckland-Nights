@@ -855,7 +855,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
           >
             <div>#</div>
             <div>Member</div>
-            <div className="text-center px-2">Rank</div>
+            <div className="text-center px-2">ATP</div>
             <div className="text-center px-2 hidden sm:block">Callsign</div>
           </div>
           {leadershipGroups.map(({ rank, members }) => (
@@ -1165,7 +1165,7 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
 
   const deleteRosterMemberMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/roster/${member.id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/api/roster/${member.id}?departmentCode=${encodeURIComponent(code)}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed");
     },
     onSuccess: () => {
@@ -1242,7 +1242,7 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
           </Button>
         </Link>
 
-        {!!isStaffDirectorOrExec && !member.id.startsWith("auto-") && (
+        {!!isStaffDirectorOrExec && (
           <Button
             variant="outline"
             className="w-full mt-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 gap-2"

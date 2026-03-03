@@ -1304,11 +1304,33 @@ export async function registerRoutes(
       if (!tier || !["director", "executive"].includes(tier)) {
         return res.status(403).json({ error: "Only Directors and Executives can remove roster members" });
       }
-      const member = await storage.getRosterMember(req.params.id);
+      const memberId = req.params.id;
+
+      if (memberId.startsWith("auto-")) {
+        const parts = memberId.replace("auto-", "").split("-");
+        const userId = parts[0];
+        const rankId = parts.slice(1).join("-");
+        if (!userId) return res.status(400).json({ error: "Invalid auto member ID" });
+
+        const existing = await storage.getRosterMemberByUser(userId, req.query.departmentCode as string || "");
+        if (existing) {
+          await storage.updateRosterMember(existing.id, { isActive: false });
+        } else {
+          await storage.createRosterMember({
+            userId,
+            departmentCode: req.query.departmentCode as string || "",
+            rankId,
+            isActive: false,
+          });
+        }
+        return res.json({ success: true });
+      }
+
+      const member = await storage.getRosterMember(memberId);
       if (!member) {
         return res.status(404).json({ error: "Roster member not found" });
       }
-      await storage.deleteRosterMember(req.params.id);
+      await storage.deleteRosterMember(memberId);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete roster member error:", error);
