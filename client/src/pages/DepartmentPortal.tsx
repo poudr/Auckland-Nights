@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/hooks/use-upload";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown, UserCog, Crosshair } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, Users, FileText, ClipboardList, ChevronLeft, Lock, Settings, Plus, Trash2, GripVertical, Edit, Check, BookOpen, ChevronRight, X, Layers, Truck, Bell, TrafficCone, Paperclip, Image as ImageIcon, Loader2, Download, ArrowUp, ArrowDown, UserCog, Crosshair, UserPlus } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, getAvatarUrl, type User } from "@/lib/auth";
 import policeBanner from "@assets/police_1770891742345.png";
@@ -128,6 +128,7 @@ async function checkAccess(code: string): Promise<AccessData> {
 
 function AccessDeniedPage({ code, user }: { code: string; user: User }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [viewingSubmissionId, setViewingSubmissionId] = useState<string | null>(null);
@@ -138,6 +139,29 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
       const res = await fetch(`/api/departments/${code}/whitelist-form`);
       if (!res.ok) return { form: null, questions: [] };
       return res.json() as Promise<{ form: AppForm | null; questions: AppQuestion[] }>;
+    },
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/departments/${code}/join`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to join");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Joined Department", description: `You've been added as ${data.rank}.` });
+      queryClient.invalidateQueries({ queryKey: ["checkAccess", code] });
+      queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+      window.location.reload();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to Join", description: err.message, variant: "destructive" });
     },
   });
 
@@ -268,6 +292,16 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
           {!isLoading && whitelistForm && (
             <Button onClick={() => setShowForm(true)} className="bg-orange-500 hover:bg-orange-600 text-black" data-testid="button-apply-now">
               <ClipboardList className="w-4 h-4 mr-2" /> Apply Now
+            </Button>
+          )}
+          {!isLoading && !whitelistForm && (
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => joinMutation.mutate()}
+              disabled={joinMutation.isPending}
+              data-testid="button-join-department"
+            >
+              <UserPlus className="w-4 h-4 mr-2" /> {joinMutation.isPending ? "Joining..." : "Join Department"}
             </Button>
           )}
         </div>

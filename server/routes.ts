@@ -622,6 +622,115 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/departments/:code/join", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      const user = req.user!;
+
+      const dept = await storage.getDepartment(code);
+      if (!dept) return res.status(404).json({ error: "Department not found" });
+
+      const forms = await storage.getApplicationFormsByDepartment(code);
+      const whitelistForm = forms.find(f => f.isActive && f.isWhitelist);
+      if (whitelistForm) {
+        return res.status(400).json({ error: "This department requires a whitelist application" });
+      }
+
+      const existingMember = await storage.getRosterMemberByUser(user.id, code);
+      if (existingMember) {
+        return res.status(400).json({ error: "You are already a member of this department" });
+      }
+
+      const deptRanks = await storage.getRanksByDepartment(code);
+      if (deptRanks.length === 0) {
+        return res.status(400).json({ error: "No ranks configured for this department" });
+      }
+      const lowestRank = deptRanks[deptRanks.length - 1];
+
+      const rosterMember = await storage.createRosterMember({
+        userId: user.id,
+        departmentCode: code,
+        rankId: lowestRank.id,
+      });
+
+      const currentWebsiteRoles = user.websiteRoles || [];
+      if (!currentWebsiteRoles.includes(code)) {
+        const mergedRoles = [...new Set([...currentWebsiteRoles, code])];
+        await storage.updateUser(user.discordId, { websiteRoles: mergedRoles });
+      }
+
+      const errors: string[] = [];
+      const assignedDiscordRoles: string[] = [];
+
+      const botToken = process.env.DISCORD_BOT_TOKEN;
+      const guildId = process.env.DISCORD_GUILD_ID;
+      if (botToken && guildId) {
+        const allMappings = await storage.getRoleMappings();
+        const mapping = allMappings.find(m => m.websitePermission.split(",").map(p => p.trim()).includes(code));
+        if (mapping) {
+          try {
+            const response = await fetch(
+              `https://discord.com/api/v10/guilds/${guildId}/members/${user.discordId}/roles/${mapping.discordRoleId}`,
+              {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bot ${botToken}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+            if (response.ok || response.status === 204) {
+              assignedDiscordRoles.push(mapping.discordRoleId);
+            } else {
+              const errorText = await response.text();
+              console.error(`Failed to assign Discord role:`, response.status, errorText);
+              errors.push(`Discord role: ${response.status}`);
+            }
+          } catch (err) {
+            console.error(`Error assigning Discord role:`, err);
+            errors.push("Discord role: network error");
+          }
+        }
+
+        if (lowestRank.discordRoleId) {
+          try {
+            const response = await fetch(
+              `https://discord.com/api/v10/guilds/${guildId}/members/${user.discordId}/roles/${lowestRank.discordRoleId}`,
+              {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bot ${botToken}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+            if (response.ok || response.status === 204) {
+              assignedDiscordRoles.push(lowestRank.discordRoleId);
+            } else {
+              const errorText = await response.text();
+              console.error(`Failed to assign Discord rank role:`, response.status, errorText);
+              errors.push(`Rank Discord role: ${response.status}`);
+            }
+          } catch (err) {
+            console.error(`Error assigning rank Discord role:`, err);
+            errors.push("Rank Discord role: network error");
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        rosterMember,
+        rank: lowestRank.name,
+        assignedDiscordRoles,
+        errors,
+      });
+    } catch (error) {
+      console.error("Join department error:", error);
+      res.status(500).json({ error: "Failed to join department" });
+    }
+  });
+
   app.get("/api/forms/:id", isAuthenticated, async (req, res) => {
     try {
       const form = await storage.getApplicationForm(req.params.id);

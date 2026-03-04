@@ -1,15 +1,16 @@
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck, TrafficCone, Crosshair } from "lucide-react";
+import { Shield, Flame, HeartPulse, Target, ChevronRight, Lock, ClipboardList, Truck, TrafficCone, Crosshair, UserPlus } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { PageSeo } from "@/components/PageSeo";
 import { useUser, type User } from "@/lib/auth";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 interface Department {
   id: string;
@@ -146,6 +147,8 @@ export default function Departments() {
 
 function DepartmentCard({ department, user }: { department: Department; user: User | null }) {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: accessData } = useQuery<AccessData>({
     queryKey: ["departmentAccess", department.code],
     queryFn: () => checkAccess(department.code),
@@ -162,6 +165,29 @@ function DepartmentCard({ department, user }: { department: Department; user: Us
       return res.json();
     },
     enabled: !!user && accessData?.hasAccess === false,
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/departments/${department.code}/join`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to join");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Joined Department", description: `You've been added as ${data.rank}.` });
+      queryClient.invalidateQueries({ queryKey: ["departmentAccess", department.code] });
+      queryClient.invalidateQueries({ queryKey: ["whitelist-form", department.code] });
+      queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to Join", description: err.message, variant: "destructive" });
+    },
   });
 
   const hasWhitelistForm = !!whitelistData?.form;
@@ -212,6 +238,15 @@ function DepartmentCard({ department, user }: { department: Department; user: Us
               data-testid={`button-apply-${department.code}`}
             >
               <ClipboardList className="w-4 h-4 mr-2" /> Apply Now
+            </Button>
+          ) : whitelistData && !hasWhitelistForm ? (
+            <Button 
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => joinMutation.mutate()}
+              disabled={joinMutation.isPending}
+              data-testid={`button-join-${department.code}`}
+            >
+              <UserPlus className="w-4 h-4 mr-2" /> {joinMutation.isPending ? "Joining..." : "Join Department"}
             </Button>
           ) : (
             <Button 
