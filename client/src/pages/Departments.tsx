@@ -190,7 +190,8 @@ function DepartmentCard({ department, user }: { department: Department; user: Us
     },
   });
 
-  const hasWhitelistForm = !!whitelistData?.form;
+  const hasWhitelistForm = !!whitelistData?.form && whitelistData.form.isOpen !== false;
+  const whitelistFormClosed = !!whitelistData?.form && whitelistData.form.isOpen === false;
   const icon = ICONS[department.icon] || <Shield className="w-8 h-8" />;
 
   return (
@@ -238,6 +239,14 @@ function DepartmentCard({ department, user }: { department: Department; user: Us
               data-testid={`button-apply-${department.code}`}
             >
               <ClipboardList className="w-4 h-4 mr-2" /> Apply Now
+            </Button>
+          ) : whitelistFormClosed ? (
+            <Button 
+              variant="outline" 
+              className="w-full border-red-500/20 text-red-400"
+              disabled
+            >
+              <Lock className="w-4 h-4 mr-2" /> Applications Closed
             </Button>
           ) : whitelistData && !hasWhitelistForm ? (
             <Button 

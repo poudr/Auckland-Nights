@@ -577,10 +577,16 @@ export async function registerRoutes(
       let emsCsoRoleId: string | null = null;
       if (code === "ems") {
         const csoSetting = await storage.getAdminSetting("ems_cso_role_id");
-        emsCsoRoleId = csoSetting || null;
+        emsCsoRoleId = csoSetting?.value || null;
       }
 
-      res.json({ roster: autoRoster, ranks: departmentRanks, emsCsoRoleId });
+      let fireCommsRoleId: string | null = null;
+      if (code === "fire") {
+        const commsSetting = await storage.getAdminSetting("fire_comms_role_id");
+        fireCommsRoleId = commsSetting?.value || null;
+      }
+
+      res.json({ roster: autoRoster, ranks: departmentRanks, emsCsoRoleId, fireCommsRoleId });
     } catch (error) {
       console.error("Roster fetch error:", error);
       res.status(500).json({ error: "Failed to fetch roster" });

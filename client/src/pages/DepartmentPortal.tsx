@@ -94,7 +94,7 @@ async function fetchDepartment(code: string): Promise<{ department: Department }
   return res.json();
 }
 
-async function fetchRoster(code: string): Promise<{ roster: RosterMember[]; ranks: Rank[]; emsCsoRoleId?: string | null }> {
+async function fetchRoster(code: string): Promise<{ roster: RosterMember[]; ranks: Rank[]; emsCsoRoleId?: string | null; fireCommsRoleId?: string | null }> {
   const res = await fetch(`/api/departments/${code}/roster`);
   if (!res.ok) throw new Error("Failed to fetch roster");
   return res.json();
@@ -289,10 +289,15 @@ function AccessDeniedPage({ code, user }: { code: string; user: User }) {
               <ChevronLeft className="w-4 h-4 mr-2" /> Back to Departments
             </Button>
           </Link>
-          {!isLoading && whitelistForm && (
+          {!isLoading && whitelistForm && whitelistForm.isOpen !== false && (
             <Button onClick={() => setShowForm(true)} className="bg-orange-500 hover:bg-orange-600 text-black" data-testid="button-apply-now">
               <ClipboardList className="w-4 h-4 mr-2" /> Apply Now
             </Button>
+          )}
+          {!isLoading && whitelistForm && whitelistForm.isOpen === false && (
+            <Badge variant="outline" className="border-red-500/30 text-red-400 py-2 px-4">
+              <Lock className="w-3.5 h-3.5 mr-1.5" /> Applications Currently Closed
+            </Badge>
           )}
           {!isLoading && !whitelistForm && (
             <Button
@@ -600,8 +605,10 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   const roster = data?.roster || [];
   const allRanks = data?.ranks || [];
   const emsCsoRoleId = data?.emsCsoRoleId || null;
+  const fireCommsRoleId = data?.fireCommsRoleId || null;
   const isPolice = code === "police";
   const isEms = code === "ems";
+  const isFire = code === "fire";
   const isAos = code === "aos";
   const squads = squadsData?.squads || [];
 
@@ -661,6 +668,7 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
               {isPolice && <div className="text-center px-2">QID</div>}
             </div>
 
+
             {populatedGroups.length > 0 && populatedGroups.map(({ rank, members }) => (
               <div key={rank.id}>
                 <div className="flex items-center gap-3 px-4 py-2 bg-zinc-800/40 border-b border-white/5">
@@ -680,6 +688,7 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
                     deptColor={deptColor}
                     index={idx + 1}
                     isPolice={isPolice}
+                    fireCommsRoleId={isFire ? fireCommsRoleId : null}
                   />
                 ))}
               </div>
@@ -1464,9 +1473,10 @@ function PoliceDivisionRoster({ roster, allRanks, deptColor }: { roster: RosterM
   );
 }
 
-function RosterTableRow({ member, deptColor, index, isPolice }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean }) {
+function RosterTableRow({ member, deptColor, index, isPolice, fireCommsRoleId }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean; fireCommsRoleId?: string | null }) {
   const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
+  const hasFireComms = fireCommsRoleId && member.user.roles && member.user.roles.includes(fireCommsRoleId);
 
   return (
     <>
@@ -1488,7 +1498,12 @@ function RosterTableRow({ member, deptColor, index, isPolice }: { member: Roster
               className="w-full h-full object-cover"
             />
           </div>
-          <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
+            {hasFireComms && (
+              <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 whitespace-nowrap shrink-0" data-testid={`fire-comms-${member.user.discordId}`}>Fire Comms</Badge>
+            )}
+          </div>
         </div>
         <div className="text-center px-2 shrink-0">
           {isPolice ? (
@@ -2252,7 +2267,7 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
   }, [editFormData, isEditing, questionsLoaded]);
 
   const deptRanks = ranksData || [];
-  const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
+  const ranksWithDiscordRole = deptRanks;
   const websiteRoleOptions = [code, ...(code === "police" ? ["aos"] : []), ...(code === "ems" ? ["sert"] : [])];
 
   const toggleDiscordRole = (roleId: string) => {
@@ -2419,20 +2434,25 @@ function FormBuilder({ code, editForm, onBack }: { code: string; editForm?: AppF
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Discord Roles (from department ranks)</Label>
                 {ranksWithDiscordRole.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60">No ranks have Discord Role IDs configured. Set them in Leadership Settings.</p>
+                  <p className="text-xs text-muted-foreground/60">No ranks configured. Set them in Leadership Settings.</p>
                 ) : (
                   <div className="space-y-1.5">
                     {ranksWithDiscordRole.map((rank) => (
                       <div key={rank.id} className="flex items-center gap-2">
                         <Checkbox
-                          checked={selectedDiscordRoles.includes(rank.discordRoleId!)}
-                          onCheckedChange={() => toggleDiscordRole(rank.discordRoleId!)}
+                          checked={rank.discordRoleId ? selectedDiscordRoles.includes(rank.discordRoleId) : false}
+                          onCheckedChange={() => rank.discordRoleId && toggleDiscordRole(rank.discordRoleId)}
+                          disabled={!rank.discordRoleId}
                           id={`discord-role-${rank.id}`}
                           data-testid={`checkbox-discord-role-${rank.id}`}
                         />
-                        <Label htmlFor={`discord-role-${rank.id}`} className="text-sm cursor-pointer">
+                        <Label htmlFor={`discord-role-${rank.id}`} className={`text-sm cursor-pointer ${!rank.discordRoleId ? "text-muted-foreground" : ""}`}>
                           {rank.name}
-                          <span className="text-[10px] text-muted-foreground ml-1">({rank.discordRoleId})</span>
+                          {rank.discordRoleId ? (
+                            <span className="text-[10px] text-muted-foreground ml-1">({rank.discordRoleId})</span>
+                          ) : (
+                            <span className="text-[10px] text-red-400/60 ml-1">(no Discord ID)</span>
+                          )}
                         </Label>
                       </div>
                     ))}
@@ -2697,8 +2717,30 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
     enabled: !!deptCode && isLeadership,
   });
 
+  const { data: fireCommsRoleForAccept } = useQuery({
+    queryKey: ["fireCommsRoleAccept"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/fire_comms_role_id");
+      if (!res.ok) return null;
+      const d = await res.json();
+      return d.value || null;
+    },
+    enabled: deptCode === "fire" && isLeadership,
+  });
+
+  const { data: emsCsoRoleForAccept } = useQuery({
+    queryKey: ["emsCsoRoleAccept"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/ems_cso_role_id");
+      if (!res.ok) return null;
+      const d = await res.json();
+      return d.value || null;
+    },
+    enabled: deptCode === "ems" && isLeadership,
+  });
+
   const deptRanks = ranksData || [];
-  const ranksWithDiscordRole = deptRanks.filter(r => r.discordRoleId);
+  const ranksWithDiscordRole = deptRanks;
   const websiteRoleOptions = [deptCode, ...(deptCode === "police" ? ["aos"] : []), ...(deptCode === "ems" ? ["sert"] : [])];
 
   useEffect(() => {
@@ -2838,23 +2880,29 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Discord Roles</Label>
                 {ranksWithDiscordRole.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60">No ranks with Discord Role IDs found.</p>
+                  <p className="text-xs text-muted-foreground/60">No ranks found.</p>
                 ) : (
                   <div className="space-y-1.5">
                     {ranksWithDiscordRole.map((rank) => (
                       <div key={rank.id} className="flex items-center gap-2">
                         <Checkbox
-                          checked={acceptDiscordRoles.includes(rank.discordRoleId!)}
+                          checked={rank.discordRoleId ? acceptDiscordRoles.includes(rank.discordRoleId) : false}
                           onCheckedChange={(checked) => {
+                            if (!rank.discordRoleId) return;
                             if (checked) setAcceptDiscordRoles(prev => [...prev, rank.discordRoleId!]);
                             else setAcceptDiscordRoles(prev => prev.filter(r => r !== rank.discordRoleId!));
                           }}
+                          disabled={!rank.discordRoleId}
                           id={`accept-discord-${rank.id}`}
                           data-testid={`accept-discord-role-${rank.id}`}
                         />
-                        <Label htmlFor={`accept-discord-${rank.id}`} className="text-sm cursor-pointer">
+                        <Label htmlFor={`accept-discord-${rank.id}`} className={`text-sm cursor-pointer ${!rank.discordRoleId ? "text-muted-foreground" : ""}`}>
                           {rank.name}
-                          <span className="text-[10px] text-muted-foreground ml-1">({rank.discordRoleId})</span>
+                          {rank.discordRoleId ? (
+                            <span className="text-[10px] text-muted-foreground ml-1">({rank.discordRoleId})</span>
+                          ) : (
+                            <span className="text-[10px] text-red-400/60 ml-1">(no Discord ID)</span>
+                          )}
                         </Label>
                       </div>
                     ))}
@@ -3130,9 +3178,13 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
 
   const isAos = code === "aos";
   const isEms = code === "ems";
+  const isFire = code === "fire";
 
   const [editingCsoRole, setEditingCsoRole] = useState(false);
   const [csoRoleId, setCsoRoleId] = useState("");
+
+  const [editingFireCommsRole, setEditingFireCommsRole] = useState(false);
+  const [fireCommsRoleId, setFireCommsRoleId] = useState("");
 
   const { data: ranksData, isLoading } = useQuery({
     queryKey: ["departmentRanks", code],
@@ -3170,11 +3222,28 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     }
   }, [accessRoleData]);
 
+  const { data: fireCommsRoleData } = useQuery({
+    queryKey: ["fireCommsRole"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/fire_comms_role_id");
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.value || null;
+    },
+    enabled: isFire,
+  });
+
   useEffect(() => {
     if (csoRoleData) {
       setCsoRoleId(csoRoleData);
     }
   }, [csoRoleData]);
+
+  useEffect(() => {
+    if (fireCommsRoleData) {
+      setFireCommsRoleId(fireCommsRoleData);
+    }
+  }, [fireCommsRoleData]);
 
   const createRankMutation = useMutation({
     mutationFn: async (rankData: typeof newRank) => {
@@ -3301,6 +3370,25 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     },
   });
 
+  const updateFireCommsRoleMutation = useMutation({
+    mutationFn: async (newRoleId: string) => {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: "fire_comms_role_id", value: newRoleId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Fire Comms Role Updated" });
+      setEditingFireCommsRole(false);
+      queryClient.invalidateQueries({ queryKey: ["fireCommsRole"] });
+      queryClient.invalidateQueries({ queryKey: ["roster", "fire"] });
+    },
+  });
+
   if (isLoading) {
     return <Skeleton className="h-96" />;
   }
@@ -3423,6 +3511,70 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
                       className="h-8 w-8"
                       onClick={() => setEditingCsoRole(true)}
                       data-testid="button-edit-cso-role"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isFire && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div>
+                <h3 className="font-semibold" style={{ color: deptColor }}>Fire Comms Discord Role</h3>
+                <p className="text-xs text-muted-foreground">The Discord Role ID that marks a member as Fire Comms on the roster</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {editingFireCommsRole ? (
+                  <>
+                    <Input
+                      placeholder="Discord Role ID"
+                      value={fireCommsRoleId}
+                      onChange={(e) => setFireCommsRoleId(e.target.value)}
+                      className="h-8 text-sm w-56"
+                      data-testid="input-fire-comms-role-id"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8"
+                      onClick={() => updateFireCommsRoleMutation.mutate(fireCommsRoleId)}
+                      disabled={updateFireCommsRoleMutation.isPending}
+                      data-testid="button-save-fire-comms-role"
+                    >
+                      <Check className="w-3 h-3 mr-1" /> Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => { setEditingFireCommsRole(false); setFireCommsRoleId(fireCommsRoleData || ""); }}
+                      data-testid="button-cancel-fire-comms-role"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-mono">
+                      {fireCommsRoleData ? (
+                        <span className="text-green-400">{fireCommsRoleData}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Not configured</span>
+                      )}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setEditingFireCommsRole(true)}
+                      data-testid="button-edit-fire-comms-role"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
