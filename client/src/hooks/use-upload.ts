@@ -40,8 +40,11 @@ export function useUpload(options: UseUploadOptions = {}) {
         });
 
         if (!response.ok) {
+          if (response.status === 413) {
+            throw new Error("File is too large. If using a reverse proxy (nginx), increase client_max_body_size.");
+          }
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to upload file");
+          throw new Error(errorData.error || `Upload failed (${response.status})`);
         }
 
         setProgress(100);

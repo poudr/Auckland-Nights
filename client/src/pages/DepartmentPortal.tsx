@@ -2741,8 +2741,8 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
       setAttachmentPath(response.objectPath);
       setAttachmentName(response.metadata.name);
     },
-    onError: () => {
-      toast({ title: "Failed to upload file", variant: "destructive" });
+    onError: (err) => {
+      toast({ title: "Failed to upload file", description: err.message, variant: "destructive" });
     },
   });
   const [showAcceptPanel, setShowAcceptPanel] = useState(false);

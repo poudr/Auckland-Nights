@@ -1647,8 +1647,9 @@ function SeoManagementTab() {
       formData.append("file", file);
       const response = await fetch("/api/uploads/file", { method: "POST", body: formData, credentials: "include" });
       if (!response.ok) {
+        if (response.status === 413) throw new Error("File is too large. If using nginx, increase client_max_body_size.");
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Upload failed");
+        throw new Error(errData.error || `Upload failed (${response.status})`);
       }
       const data = await response.json();
 
@@ -1691,8 +1692,9 @@ function SeoManagementTab() {
       formData.append("file", file);
       const response = await fetch("/api/uploads/file", { method: "POST", body: formData, credentials: "include" });
       if (!response.ok) {
+        if (response.status === 413) throw new Error("File is too large. If using nginx, increase client_max_body_size.");
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Upload failed");
+        throw new Error(errData.error || `Upload failed (${response.status})`);
       }
       const data = await response.json();
 

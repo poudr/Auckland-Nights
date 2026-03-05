@@ -50,8 +50,8 @@ function ServerUpdatesSection({ user }: { user: any }) {
       setUploadedImagePath(response.objectPath);
       toast({ title: "Image uploaded" });
     },
-    onError: () => {
-      toast({ title: "Failed to upload image", variant: "destructive" });
+    onError: (err) => {
+      toast({ title: "Failed to upload image", description: err.message, variant: "destructive" });
     },
   });
 
