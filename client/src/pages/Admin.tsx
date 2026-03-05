@@ -1645,19 +1645,31 @@ function SeoManagementTab() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch("/api/uploads/file", { method: "POST", body: formData });
-      if (!response.ok) throw new Error("Upload failed");
+      const response = await fetch("/api/uploads/file", { method: "POST", body: formData, credentials: "include" });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Upload failed");
+      }
       const data = await response.json();
 
-      await saveSetting("favicon_url", data.objectPath);
+      const saveRes = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: "favicon_url", value: data.objectPath }),
+      });
+      if (!saveRes.ok) {
+        const errData = await saveRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save setting");
+      }
       queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
 
       const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
       if (link) link.href = data.objectPath;
 
       toast({ title: "Favicon Updated", description: "Your site favicon has been updated." });
-    } catch (err) {
-      toast({ title: "Upload Failed", description: "Could not upload favicon", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Upload Failed", description: err?.message || "Could not upload favicon", variant: "destructive" });
     } finally {
       setFaviconUploading(false);
       if (faviconInputRef.current) faviconInputRef.current.value = "";
@@ -1677,11 +1689,23 @@ function SeoManagementTab() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch("/api/uploads/file", { method: "POST", body: formData });
-      if (!response.ok) throw new Error("Upload failed");
+      const response = await fetch("/api/uploads/file", { method: "POST", body: formData, credentials: "include" });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Upload failed");
+      }
       const data = await response.json();
 
-      await saveSetting("og_image_url", data.objectPath);
+      const saveRes = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: "og_image_url", value: data.objectPath }),
+      });
+      if (!saveRes.ok) {
+        const errData = await saveRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save setting");
+      }
       queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
       queryClient.invalidateQueries({ queryKey: ["seo"] });
 
@@ -1692,8 +1716,8 @@ function SeoManagementTab() {
       if (twitterImage) twitterImage.setAttribute("content", fullUrl);
 
       toast({ title: "Banner Image Updated", description: "Your site's social sharing image has been updated." });
-    } catch (err) {
-      toast({ title: "Upload Failed", description: "Could not upload banner image", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Upload Failed", description: err?.message || "Could not upload banner image", variant: "destructive" });
     } finally {
       setOgImageUploading(false);
       if (ogImageInputRef.current) ogImageInputRef.current.value = "";

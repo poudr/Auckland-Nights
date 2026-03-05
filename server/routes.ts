@@ -1427,6 +1427,28 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/roster/:id/custom-atp", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const tier = user.staffTier;
+      const isStaffLeader = tier && ["director", "executive", "manager"].includes(tier);
+      const isEmsLeadership = await isUserDepartmentLeadership(user, "ems");
+      if (!isStaffLeader && !isEmsLeadership) {
+        return res.status(403).json({ error: "Only leadership can set custom ATP" });
+      }
+      const member = await storage.getRosterMember(req.params.id);
+      if (!member || member.departmentCode !== "ems") {
+        return res.status(404).json({ error: "EMS roster member not found" });
+      }
+      const { customAtp } = req.body;
+      const updated = await storage.updateRosterMember(req.params.id, { customAtp: customAtp || null });
+      res.json({ success: true, member: updated });
+    } catch (error) {
+      console.error("Update custom ATP error:", error);
+      res.status(500).json({ error: "Failed to update custom ATP" });
+    }
+  });
+
   app.delete("/api/roster/:id", isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;

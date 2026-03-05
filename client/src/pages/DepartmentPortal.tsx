@@ -57,6 +57,7 @@ interface RosterMember {
   callsign: string | null;
   qid: string | null;
   division: string | null;
+  customAtp: string | null;
   squadId: string | null;
   status: string;
   user: { id: string; username: string; displayName: string | null; avatar: string | null; discordId: string; roles: string[] | null } | null;
@@ -1012,7 +1013,7 @@ function EmsLeadershipRow({ member, deptColor, index, csoRoleId }: { member: Ros
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {member.rank?.name}
+            {member.customAtp || member.rank?.name}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -1063,7 +1064,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {rank.name}
+            {member.customAtp || rank.name}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -1114,7 +1115,7 @@ function EmsAtpRow({ member, rank, deptColor, csoRoleId }: { member: RosterMembe
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {rank.name}
+            {member.customAtp || rank.name}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -1142,13 +1143,17 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
   const [divisionValue, setDivisionValue] = useState(member.division || "");
   const [editingCallsign, setEditingCallsign] = useState(false);
   const [callsignValue, setCallsignValue] = useState(member.callsign || "");
+  const [editingAtp, setEditingAtp] = useState(false);
+  const [atpValue, setAtpValue] = useState(member.customAtp || "");
   const code = departmentCode || member.departmentCode || "unknown";
 
   useEffect(() => {
     setDivisionValue(member.division || "");
     setCallsignValue(member.callsign || "");
+    setAtpValue(member.customAtp || "");
     setEditingCallsign(false);
-  }, [member.division, member.callsign, member.id]);
+    setEditingAtp(false);
+  }, [member.division, member.callsign, member.customAtp, member.id]);
 
   const { data: accessData } = useQuery({
     queryKey: ["checkAccess", code],
@@ -1164,9 +1169,11 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
   const isStaffDirectorOrExec = currentUser?.staffTier && ["director", "executive"].includes(currentUser.staffTier);
   const isDeptLeadership = accessData?.isLeadership || false;
   const isPolice = code === "police";
+  const isEms = code === "ems";
   const canEditCallsign = !!isStaffLeader || isDeptLeadership;
   const showNotes = isPolice && (!!isStaffLeader || isDeptLeadership);
   const showDivision = isPolice && (!!isStaffDirectorOrExec || isDeptLeadership);
+  const canEditAtp = isEms && (!!isStaffLeader || isDeptLeadership);
 
   const { data: notesData, refetch: refetchNotes } = useQuery({
     queryKey: ["rosterNotes", member.id],
@@ -1194,6 +1201,24 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
       queryClient.invalidateQueries({ queryKey: ["roster", code] });
     },
     onError: () => toast({ title: "Failed to update division", variant: "destructive" }),
+  });
+
+  const atpMutation = useMutation({
+    mutationFn: async (customAtp: string) => {
+      const res = await fetch(`/api/roster/${member.id}/custom-atp`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ customAtp: customAtp.trim() || null }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "ATP updated" });
+      setEditingAtp(false);
+      queryClient.invalidateQueries({ queryKey: ["roster", code] });
+    },
+    onError: () => toast({ title: "Failed to update ATP", variant: "destructive" }),
   });
 
   const callsignMutation = useMutation({
@@ -1337,6 +1362,34 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {canEditAtp && !member.id.startsWith("auto-") && (
+          <div className="mt-3 space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Custom ATP</Label>
+            {editingAtp ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={atpValue}
+                  onChange={(e) => setAtpValue(e.target.value)}
+                  className="h-8 text-xs"
+                  placeholder="e.g. Critical Care Paramedic"
+                  data-testid="input-custom-atp"
+                  autoFocus
+                />
+                <Button size="icon" className="h-8 w-8 shrink-0" onClick={() => atpMutation.mutate(atpValue)} disabled={atpMutation.isPending} data-testid="button-save-atp">
+                  <Check className="w-3 h-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => { setEditingAtp(false); setAtpValue(member.customAtp || ""); }} data-testid="button-cancel-atp">
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm font-medium cursor-pointer hover:opacity-80 px-1" style={{ color: deptColor }} onClick={() => setEditingAtp(true)} data-testid="text-atp-editable">
+                {member.customAtp || <span className="text-muted-foreground text-xs italic">Click to set custom ATP</span>}
+              </p>
+            )}
           </div>
         )}
 

@@ -1,130 +1,50 @@
 # Tamaki Makaurau RP - FiveM Server Website
 
 ## Overview
-A dark-themed website for a New Zealand/Auckland-based GTA V FiveM roleplay server. Features Discord OAuth authentication with automatic role syncing from the Discord server to the website.
+This project is a dark-themed website for a New Zealand/Auckland-based GTA V FiveM roleplay server. Its primary purpose is to provide a centralized platform for community management, staff operations, and player engagement. Key capabilities include Discord OAuth authentication with automatic role syncing, comprehensive department management (Police, EMS, Fire, AOS, SERT, Traffic Control, Towing), and an advanced application system for joining departments and submitting support requests. The platform aims to streamline administrative tasks, enhance communication within the server community, and offer a rich, interactive experience for players and staff.
 
-## Recent Changes
-- **Mar 4, 2026**: Join Department button for departments without whitelist applications - Players can directly join, receiving lowest rank + website portal access + Discord role; Police roster "Rank" column changed to "Callsign" display; Leadership/command can edit callsigns via PlayerCardDialog; CSO column added to EMS leadership (top) roster section
-- **Mar 3, 2026**: Roster member deletion (Director/Executive only via PlayerCardDialog); EMS roster "Rank" column renamed to "PST" in middle section; CSO Discord Role ID configurable in EMS Leadership Settings
-- **Mar 3, 2026**: Department application form open/close toggle - Leadership can lock/unlock forms via toggle button (green checkmark = open, red lock = closed); Closed forms show "Currently Closed" badge and lock icon for applicants; Server rejects submissions to closed forms; Anyone can submit applications regardless of staff position or rank (removed access restriction); Leadership users can now see and use the "Apply" section too
-- **Mar 2, 2026**: Police Division system - Added division column to police roster (to left of QID); Division sub-tab toggle (Roster/Division views); PoliceDivisionRoster groups members by PST, RPT, CIB, Dogs Squad + Unassigned; Division assignment via PlayerCardDialog (Director/Executive only); Leadership notes on police roster members (Director/Executive/Manager); Division and rosterNotes database tables; Backend routes with police-scoped access control; Form open/close toggle (isOpen field)
-- **Feb 25, 2026**: SERT department - Added Special Emergency Response Team (S.E.R.T) as sub-department under EMS (similar to AOS under Police); EMS portal has EMS/SERT toggle; Crosshair icon, #DC2626 color; blank ranks (managed via Leadership Settings); full feature parity (roster, SOPs, applications, leadership settings); accept panel allows granting SERT portal access from EMS applications; fixed department leadership access bug (check-access now grants hasAccess when isLeadership is true; all backend leadership route guards use shared isUserDepartmentLeadership function; manager staffTier included in leadership check)
-- **Feb 23, 2026**: Support Form Managers - Extended form managers to support forms (Ban Appeals, Staff Apps, Social Media, etc.); Directors/Executives can assign users via UserCog button on form cards and in form detail; Form managers can view/respond to submissions, update status, delete applications for assigned support forms; Notifications delivered to form managers on new submissions and replies; Fixed allUsersData parsing bug in both DepartmentPortal and Support form manager dialogs
-- **Feb 23, 2026**: Form Managers system - Individual user assignment to manage specific application forms; FormManagersDialog with user selection (leadership-only); Form managers can view/respond to submissions, update status, delete applications for assigned forms; check-access grants portal access to managers; Favicon upload in SEO Management tab (supports .ico/.png/.svg, stored via admin settings, dynamically loaded via PageSeo)
-- **Feb 23, 2026**: QoL improvements batch - Question reordering (move up/down) in department and support form builders; Full rank editing (name, abbreviation, callsign prefix, leadership flag, Discord ID) in both Leadership Settings and Admin panel; Rank hierarchy reordering (move up/down priority); General portal access role display/edit per department; Rebuilt admin panel with Dashboard (stats overview), Access Control (granular permission tiers per action), SEO Management (per-page titles/descriptions with preview), Audit Log (paginated action tracking with user info), plus existing tabs; Dynamic page SEO via PageSeo component; Audit logging on admin actions (role CRUD, settings, sync, user updates)
-- **Feb 23, 2026**: Switched file uploads from Replit Object Storage to local filesystem (multer-based); uploads saved to `uploads/` directory; works on VPS without cloud dependencies; Added APP_URL env var for Discord OAuth callback on custom domains
-- **Feb 23, 2026**: File upload storage for server updates and application messages; Server Updates use direct image upload instead of URL input; Application messages support file attachments (images inline, documents downloadable); Discord invite URL and FiveM connect URL now read from admin settings (Join page, Support page); MessageContent component renders attachments in threads
-- **Feb 20, 2026**: Added Auckland Traffic Control department (code: traffic, icon: TrafficCone, color: #F97316); TrafficCone icon added to all department icon maps (DepartmentPortal, Departments, Profile); Director/Executive/Manager website roles updated with 'traffic' permission; department works identically to other departments (roster, SOPs, applications, leadership settings)
-- **Feb 19, 2026**: Player profiles at /profile/:discordId (display name from Discord, department memberships with ranks/callsigns/QIDs, staff-visible open applications); EMS custom roster layout (Name-ATP-Callsign-CSO columns, CSO from Discord role); Roster names link to profiles using displayName; "My Profile" in user dropdown; displayName shown throughout nav
-- **Feb 19, 2026**: Support page redesigned with tabbed layout (FAQ, Applications, Join Discord, Contact Us); FAQ system with accordion-style entries (Executive/Director can add/edit/delete FAQs with categories); Application form management (Executive/Director can create/delete forms); Join Discord section with rich invite card; Contact Us with Discord ticket links; Removed "Welcome back" from home page; Added SUPPORT to navbar before SHOP
-- **Feb 19, 2026**: Server Updates section on home page (Manager+ can post updates with title, description, optional image; newest shows in full, older condensed); Support page (/support) with 7 pre-seeded application types (Staff Apps, Ban Appeals, Events Staff, Social Media, CivX, Gang, Development); configurable access tiers per form; Executive/Director can edit questions and access; staff can close/open forms; submission thread system with notifications
-- **Feb 16, 2026**: Notification deep-linking (clicks navigate directly to application thread); User applications visible on access-denied pages; Clear All notifications button; Leadership can delete applications; Configurable notification recipients per form
-- **Feb 16, 2026**: Form editing (edit existing application forms with pre-populated questions/roles); Whitelist application system (isWhitelist flag, "Apply Now" button on access-denied pages and department cards, public whitelist form endpoint); One whitelist form per department enforced; Submission validation restricts non-members to whitelist forms only
-- **Feb 16, 2026**: Automatic role assignment on application acceptance; Form builder configures default Discord roles (from department ranks) and website portal access roles; Accept panel lets leadership tweak roles per-application before confirming; Server-side validation restricts roles to department scope; Discord Bot API integration for role assignment; DISCORD_BOT_TOKEN secret required
-- **Feb 11, 2026**: Home page About section (admin-editable description + Get Started button); Changed "Whitelisted Jobs" to "Custom Scripts"; Admin Settings now persist to database; AOS Squad system (squad CRUD, squad-based roster categorization, squad assignment in leadership settings)
-- **Feb 10, 2026**: Fire and EMS SOP pages with Jump To navigation (Rules-page style); Custom staff roster colors (hex); Admin panel restricted to Director/Executive only; Pre-seeded department access role mappings (Police, Fire, EMS, AOS); Removed AOS ranks from seed (manual setup); QID system for Police roster
-- **Feb 10, 2026**: Added "Department Roles" section in admin Role Management panel with expandable department accordions and inline Discord Role ID editing; Bi-directional sync with Leadership Settings (both use same rank update API); Fixed Leadership Settings tab visibility for Directors/Executives
-- **Feb 9, 2026**: Unified role management (merged Website Roles + Discord Mappings into single tab); Pre-seeded 6 staff roles; Auto-populating roster from Discord role IDs on department ranks; Inline rank Discord Role ID editing in Leadership Settings
-- **Jan 30, 2026**: Added department portals with rosters, SOPs, applications; Admin dashboard with role mapping CRUD and bulk sync; Team page with staff hierarchy
-- **Jan 30, 2026**: Initial full-stack implementation with Discord OAuth, user profiles, staff roster, and department portals
+## User Preferences
+I want iterative development.
+Ask before making major changes.
+I prefer detailed explanations.
+Do not make changes to the folder `shared`.
+Do not make changes to the file `server/seed.ts`.
+I prefer to use `npm` as the package manager.
+I prefer `React 19` with `TypeScript` for the frontend.
+I prefer `Tailwind CSS v4` for styling.
+I prefer `Wouter` for routing.
+I prefer `TanStack Query` for data fetching.
+I prefer `Express 5` for the backend.
+I prefer `Passport.js` with `Discord strategy` for authentication.
+I prefer `PostgreSQL` with `Drizzle ORM` for the database.
+I prefer a dark theme with orange (`#f97316`) accents.
+I prefer `Oxanium` and `Plus Jakarta Sans` fonts.
+All file uploads should use the local filesystem (`multer-based`) and save to the `uploads/` directory.
 
-## Tech Stack
-- **Frontend**: React 19 with TypeScript, Tailwind CSS v4, Wouter routing, TanStack Query
-- **Backend**: Express 5, Passport.js with Discord strategy, PostgreSQL with Drizzle ORM
-- **Styling**: Dark theme with orange (#f97316) accents, Oxanium + Plus Jakarta Sans fonts
+## System Architecture
+The system employs a client-server architecture. The frontend is built with React 19 and TypeScript, utilizing Tailwind CSS v4 for styling, Wouter for routing, and TanStack Query for data management. The backend is an Express 5 server handling API requests, authentication, and database interactions. Passport.js with a Discord strategy manages user authentication and role syncing. PostgreSQL, accessed via Drizzle ORM, serves as the primary database.
 
-## Project Structure
-```
-client/
-├── src/
-│   ├── assets/         # Images (hero-auckland.png)
-│   ├── components/     # Navbar, UI components
-│   ├── lib/            # auth.ts (Discord auth hooks), queryClient, utils
-│   └── pages/          # Home, Join, Team, Departments, DepartmentPortal, Admin
-server/
-├── auth.ts             # Discord OAuth setup with Passport, hasPermission middleware
-├── db.ts               # PostgreSQL connection
-├── routes.ts           # API endpoints for auth, departments, admin
-├── storage.ts          # Database operations via Drizzle ORM
-├── seed.ts             # Database seeding for departments and ranks
-shared/
-└── schema.ts           # Drizzle database schema (users, departments, ranks, roster, etc.)
-```
+**UI/UX Decisions:**
+The website features a dark theme with orange (`#f97316`) accents, using Oxanium and Plus Jakarta Sans fonts for a consistent aesthetic. Dynamic page SEO is implemented for better searchability.
 
-## Required Environment Variables
+**Technical Implementations:**
+- **Authentication:** Discord OAuth for user login and automatic role syncing based on `DISCORD_GUILD_ID`.
+- **Role-Based Access Control (RBAC):** Granular permissions managed through `roleMappings` table, dictating access to department portals, admin features, and specific actions. Directors/Executives have full access.
+- **Department Management:** Dedicated portals for Police, Fire, EMS, AOS, SERT, Auckland Traffic Control, and Auckland Towing, each with customizable rosters, SOPs, and application forms.
+- **Application System:** Supports both department whitelist applications and general support forms (e.g., Ban Appeals, Staff Apps). Features a form builder, submission threads, notifications, and leadership approval workflows with automatic Discord role assignment.
+- **Admin Panel:** Centralized dashboard for user management, role mapping configuration, bulk role syncing, audit logging, and SEO management.
+- **File Uploads:** Local filesystem-based storage (`multer`) for server updates and application message attachments, saving to the `uploads/` directory.
+- **Roster System:** Dynamic display of staff members, including custom ATP text, callsigns, QIDs, and division assignments (for Police). Player profiles are accessible.
+- **SOPs and FAQs:** Department-specific Standard Operating Procedures and a general FAQ system with editable, categorizable entries.
+- **Notifications:** In-app notifications with deep-linking to relevant application threads and configurable recipients.
+- **Server Updates:** A section on the homepage for managers to post server news and updates with optional images.
 
-### Discord OAuth (Required for Login)
-- `DISCORD_CLIENT_ID` - Discord application client ID
-- `DISCORD_CLIENT_SECRET` - Discord application client secret
-- `DISCORD_GUILD_ID` - Your Discord server ID (for role syncing)
-
-### Security
-- `SESSION_SECRET` - Random string for session encryption (required in production)
-
-## Features
-1. **Discord Login**: Users authenticate via Discord OAuth
-2. **Role Syncing**: User's Discord roles are automatically synced to website permissions via role mappings
-3. **Staff Roster**: Displays staff members organized by hierarchy (Director → Executive → Manager → Administrator → Moderator → Support → Development)
-4. **Department Portals**: Role-locked access to Police, EMS, Fire, and AOS department pages with rosters, SOPs, applications
-5. **Admin Dashboard**: Role mapping configuration, user management, bulk role sync
-6. **RBAC**: Directors/Executives have full access; other users need explicit website permissions
-
-## API Endpoints
-
-### Authentication
-- `GET /api/auth/discord` - Initiate Discord OAuth flow
-- `GET /api/auth/discord/callback` - OAuth callback handler
-- `POST /api/auth/logout` - End user session
-- `GET /api/auth/user` - Get current authenticated user
-- `GET /api/auth/status` - Check auth configuration status
-- `POST /api/user/sync-roles` - Refresh user roles from Discord
-
-### Team & Departments
-- `GET /api/team` - Get staff members grouped by tier
-- `GET /api/departments` - List all departments
-- `GET /api/departments/:code` - Get single department
-- `GET /api/departments/:code/ranks` - Get department ranks
-- `GET /api/departments/:code/roster` - Get department roster with users
-- `GET /api/departments/:code/sops` - Get department SOPs
-- `GET /api/departments/:code/applications` - Get department applications (auth required)
-- `POST /api/departments/:code/applications` - Submit application (auth required)
-- `GET /api/user/check-access/:department` - Check user's department access
-
-### Admin (requires admin permission)
-- `GET /api/admin/users` - List all users
-- `GET /api/admin/role-mappings` - List role mappings
-- `POST /api/admin/role-mappings` - Create role mapping
-- `DELETE /api/admin/role-mappings/:id` - Delete role mapping
-- `POST /api/admin/sync-all-roles` - Sync all users' roles from Discord
-- `GET /api/admin/settings` - Get admin settings
-- `POST /api/admin/settings` - Update admin setting
-- `GET /api/admin/menu-items` - Get menu items
-- `PUT /api/admin/menu-items/:id` - Update menu item
-
-## Database Schema
-- **users**: Discord user data with synced roles, websiteRoles, isStaff, staffTier
-- **departments**: Police, Fire, EMS, AOS with colors and icons
-- **ranks**: Department ranks with priority, leadership flag, callsign prefix
-- **rosterMembers**: User membership in departments with rank and callsign
-- **sops**: Standard Operating Procedures per department
-- **applications**: User applications to join departments
-- **roleMappings**: Discord role ID → website permission + staff tier mapping
-- **menuItems**: Dynamic navigation menu configuration
-- **adminSettings**: Key-value admin configuration
-
-## Departments (Seeded)
-### Emergency Services
-1. **Auckland Police Department** (police) - Blue, 11 ranks from Commissioner to Recruit
-2. **NZ Fire & Emergency** (fire) - Red, 8 ranks from District Manager to Recruit
-3. **Emergency Ambulance Service** (ems) - Green, 8 ranks from District Operations Officer to First Responder
-4. **Armed Offenders Squad** (aos) - Purple, sub-department under Police. Ranks managed via Leadership Settings
-5. **Special Emergency Response Team** (sert) - Red (#DC2626), sub-department under EMS. Ranks managed via Leadership Settings
-
-### Other Departments
-5. **Auckland Towing** (towing) - Amber, ranks managed via Leadership Settings. General Discord Role ID: 1404050461581115453
-
-## Development
-```bash
-npm run dev      # Start development server
-npm run db:push  # Push schema changes to database
-```
+## External Dependencies
+- **Discord API:** Used for OAuth authentication, retrieving user roles, and assigning roles via a Discord Bot API integration.
+- **PostgreSQL:** The primary database for storing all application data, user information, department configurations, roles, and other persistent data.
+- **Tailwind CSS:** A utility-first CSS framework used for styling the frontend.
+- **Wouter:** A tiny router for React used for client-side navigation.
+- **TanStack Query:** Used for data fetching, caching, and state management in the frontend.
+- **Passport.js:** Middleware for Node.js that handles authentication, specifically with the Discord strategy.
+- **Drizzle ORM:** A TypeScript ORM for PostgreSQL, used for database interactions.
+- **Multer:** Node.js middleware for handling `multipart/form-data`, primarily used for file uploads.
