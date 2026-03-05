@@ -22,6 +22,7 @@ import fireBanner from "@assets/fire_1770891742346.png";
 import emsBanner from "@assets/ems_1770891742345.png";
 import { fireSopSections } from "@/data/sop-fire";
 import { emsSopSections } from "@/data/sop-ems";
+import { trafficTowingSopSections } from "@/data/sop-traffic-towing";
 import type { SOPSection, SOPContentBlock } from "@/data/sop-fire";
 
 interface Department {
