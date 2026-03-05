@@ -449,6 +449,7 @@ export async function registerRoutes(
         callsignNumber: number | null;
         qid: string | null;
         division: string | null;
+        customAtp: string | null;
         isActive: boolean;
         user: { id: string; username: string; displayName: string | null; avatar: string | null; discordId: string; roles: string[] | null; createdAt: Date | null } | null;
         rank: typeof departmentRanks[0] | undefined;
@@ -478,6 +479,7 @@ export async function registerRoutes(
                 callsignNumber: existing.callsignNumber,
                 qid: existing.qid,
                 division: existing.division,
+                customAtp: existing.customAtp,
                 isActive: true,
                 user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
                 rank,
@@ -494,6 +496,7 @@ export async function registerRoutes(
               callsignNumber: manual?.callsignNumber || null,
               qid: manual?.qid || null,
               division: manual?.division || null,
+              customAtp: manual?.customAtp || null,
               isActive: true,
               user: { id: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, discordId: user.discordId, roles: user.roles, createdAt: user.createdAt },
               rank,
