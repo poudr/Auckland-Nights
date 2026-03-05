@@ -1712,6 +1712,8 @@ function SOPsTab({ code }: { code: string }) {
   const sopSections: SOPSection[] | null =
     code === "fire" ? fireSopSections :
     code === "ems" ? emsSopSections :
+    code === "traffic" ? trafficTowingSopSections :
+    code === "towing" ? trafficTowingSopSections :
     null;
 
   const [activeSection, setActiveSection] = useState(sopSections?.[0]?.id || "");
