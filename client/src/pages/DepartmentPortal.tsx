@@ -94,7 +94,7 @@ async function fetchDepartment(code: string): Promise<{ department: Department }
   return res.json();
 }
 
-async function fetchRoster(code: string): Promise<{ roster: RosterMember[]; ranks: Rank[]; emsCsoRoleId?: string | null; fireCommsRoleId?: string | null }> {
+async function fetchRoster(code: string): Promise<{ roster: RosterMember[]; ranks: Rank[]; emsCsoRoleId?: string | null; fireCommsRoleId?: string | null; fireSeniorDispatcherRoleId?: string | null }> {
   const res = await fetch(`/api/departments/${code}/roster`);
   if (!res.ok) throw new Error("Failed to fetch roster");
   return res.json();
@@ -606,6 +606,7 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
   const allRanks = data?.ranks || [];
   const emsCsoRoleId = data?.emsCsoRoleId || null;
   const fireCommsRoleId = data?.fireCommsRoleId || null;
+  const fireSeniorDispatcherRoleId = data?.fireSeniorDispatcherRoleId || null;
   const isPolice = code === "police";
   const isEms = code === "ems";
   const isFire = code === "fire";
@@ -689,6 +690,7 @@ function RosterTab({ code, deptColor }: { code: string; deptColor: string }) {
                     index={idx + 1}
                     isPolice={isPolice}
                     fireCommsRoleId={isFire ? fireCommsRoleId : null}
+                    fireSeniorDispatcherRoleId={isFire ? fireSeniorDispatcherRoleId : null}
                   />
                 ))}
               </div>
@@ -1473,10 +1475,11 @@ function PoliceDivisionRoster({ roster, allRanks, deptColor }: { roster: RosterM
   );
 }
 
-function RosterTableRow({ member, deptColor, index, isPolice, fireCommsRoleId }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean; fireCommsRoleId?: string | null }) {
+function RosterTableRow({ member, deptColor, index, isPolice, fireCommsRoleId, fireSeniorDispatcherRoleId }: { member: RosterMember; deptColor: string; index: number; isPolice: boolean; fireCommsRoleId?: string | null; fireSeniorDispatcherRoleId?: string | null }) {
   const [showCard, setShowCard] = useState(false);
   if (!member.user) return null;
   const hasFireComms = fireCommsRoleId && member.user.roles && member.user.roles.includes(fireCommsRoleId);
+  const hasSeniorDispatcher = fireSeniorDispatcherRoleId && member.user.roles && member.user.roles.includes(fireSeniorDispatcherRoleId);
 
   return (
     <>
@@ -1498,10 +1501,13 @@ function RosterTableRow({ member, deptColor, index, isPolice, fireCommsRoleId }:
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <span className="font-medium text-sm break-words whitespace-normal">{member.user.displayName || member.user.username}</span>
             {hasFireComms && (
-              <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 whitespace-nowrap shrink-0" data-testid={`fire-comms-${member.user.discordId}`}>Fire Comms</Badge>
+              <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 whitespace-nowrap shrink-0" data-testid={`fire-comms-${member.user.discordId}`}>COMMS</Badge>
+            )}
+            {hasSeniorDispatcher && (
+              <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 whitespace-nowrap shrink-0" data-testid={`senior-dispatcher-${member.user.discordId}`}>Senior Dispatcher</Badge>
             )}
           </div>
         </div>
@@ -3009,12 +3015,13 @@ function SubmissionThread({ submissionId, user, isLeadership, onBack }: { submis
   );
 }
 
-function RankRow({ rank, deptColor, onUpdate, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: { 
+function RankRow({ rank, deptColor, onUpdate, onDelete, onMoveUp, onMoveDown, onViewMembers, isFirst, isLast }: { 
   rank: Rank; deptColor: string; 
   onUpdate: (data: Record<string, unknown>) => void; 
   onDelete: () => void; 
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onViewMembers?: () => void;
   isFirst?: boolean;
   isLast?: boolean;
 }) {
@@ -3143,6 +3150,9 @@ function RankRow({ rank, deptColor, onUpdate, onDelete, onMoveUp, onMoveDown, is
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onMoveDown} disabled={isLast} data-testid={`button-move-down-rank-${rank.id}`}>
             <ArrowDown className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-400 hover:text-blue-300" onClick={onViewMembers} title="View Members" data-testid={`button-view-members-${rank.id}`}>
+            <Users className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(true)} data-testid={`button-edit-rank-${rank.id}`}>
             <Edit className="w-4 h-4" />
           </Button>
@@ -3185,6 +3195,11 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
 
   const [editingFireCommsRole, setEditingFireCommsRole] = useState(false);
   const [fireCommsRoleId, setFireCommsRoleId] = useState("");
+
+  const [editingSeniorDispatcherRole, setEditingSeniorDispatcherRole] = useState(false);
+  const [seniorDispatcherRoleId, setSeniorDispatcherRoleId] = useState("");
+
+  const [viewingRankMembers, setViewingRankMembers] = useState<string | null>(null);
 
   const { data: ranksData, isLoading } = useQuery({
     queryKey: ["departmentRanks", code],
@@ -3233,6 +3248,17 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
     enabled: isFire,
   });
 
+  const { data: seniorDispatcherRoleData } = useQuery({
+    queryKey: ["seniorDispatcherRole"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/fire_senior_dispatcher_role_id");
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.value || null;
+    },
+    enabled: isFire,
+  });
+
   useEffect(() => {
     if (csoRoleData) {
       setCsoRoleId(csoRoleData);
@@ -3244,6 +3270,12 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
       setFireCommsRoleId(fireCommsRoleData);
     }
   }, [fireCommsRoleData]);
+
+  useEffect(() => {
+    if (seniorDispatcherRoleData) {
+      setSeniorDispatcherRoleId(seniorDispatcherRoleData);
+    }
+  }, [seniorDispatcherRoleData]);
 
   const createRankMutation = useMutation({
     mutationFn: async (rankData: typeof newRank) => {
@@ -3382,10 +3414,47 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Fire Comms Role Updated" });
+      toast({ title: "Comms Role Updated" });
       setEditingFireCommsRole(false);
       queryClient.invalidateQueries({ queryKey: ["fireCommsRole"] });
       queryClient.invalidateQueries({ queryKey: ["roster", "fire"] });
+    },
+  });
+
+  const updateSeniorDispatcherRoleMutation = useMutation({
+    mutationFn: async (newRoleId: string) => {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: "fire_senior_dispatcher_role_id", value: newRoleId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Senior Dispatcher Role Updated" });
+      setEditingSeniorDispatcherRole(false);
+      queryClient.invalidateQueries({ queryKey: ["seniorDispatcherRole"] });
+      queryClient.invalidateQueries({ queryKey: ["roster", "fire"] });
+    },
+  });
+
+  const removeRankMemberMutation = useMutation({
+    mutationFn: async ({ rosterId }: { rosterId: string }) => {
+      const res = await fetch(`/api/roster/${rosterId}?departmentCode=${encodeURIComponent(code)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to remove member");
+    },
+    onSuccess: () => {
+      toast({ title: "Member removed from rank" });
+      queryClient.invalidateQueries({ queryKey: ["rankMembers"] });
+      queryClient.invalidateQueries({ queryKey: ["roster", code] });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove member", variant: "destructive" });
     },
   });
 
@@ -3586,6 +3655,70 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
         </Card>
       )}
 
+      {isFire && (
+        <Card className="bg-zinc-900/40 border-white/5">
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div>
+                <h3 className="font-semibold" style={{ color: deptColor }}>Senior Dispatcher Discord Role</h3>
+                <p className="text-xs text-muted-foreground">The Discord Role ID that marks a member as Senior Dispatcher on the roster</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {editingSeniorDispatcherRole ? (
+                  <>
+                    <Input
+                      placeholder="Discord Role ID"
+                      value={seniorDispatcherRoleId}
+                      onChange={(e) => setSeniorDispatcherRoleId(e.target.value)}
+                      className="h-8 text-sm w-56"
+                      data-testid="input-senior-dispatcher-role-id"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8"
+                      onClick={() => updateSeniorDispatcherRoleMutation.mutate(seniorDispatcherRoleId)}
+                      disabled={updateSeniorDispatcherRoleMutation.isPending}
+                      data-testid="button-save-senior-dispatcher-role"
+                    >
+                      <Check className="w-3 h-3 mr-1" /> Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => { setEditingSeniorDispatcherRole(false); setSeniorDispatcherRoleId(seniorDispatcherRoleData || ""); }}
+                      data-testid="button-cancel-senior-dispatcher-role"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-mono">
+                      {seniorDispatcherRoleData ? (
+                        <span className="text-green-400">{seniorDispatcherRoleData}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Not configured</span>
+                      )}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setEditingSeniorDispatcherRole(true)}
+                      data-testid="button-edit-senior-dispatcher-role"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold" style={{ color: deptColor }}>Hierarchy Management</h2>
@@ -3689,6 +3822,7 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
             onDelete={() => deleteRankMutation.mutate(rank.id)}
             onMoveUp={() => reorderRankMutation.mutate({ rankId: rank.id, direction: "up" })}
             onMoveDown={() => reorderRankMutation.mutate({ rankId: rank.id, direction: "down" })}
+            onViewMembers={() => setViewingRankMembers(rank.id)}
             isFirst={idx === 0}
             isLast={idx === ranks.length - 1}
           />
@@ -3703,7 +3837,95 @@ function LeadershipSettingsTab({ code, deptColor }: { code: string; deptColor: s
       </div>
 
       {isAos && <AosSquadManagement deptColor={deptColor} />}
+
+      <RankMembersDialog
+        rankId={viewingRankMembers}
+        code={code}
+        deptColor={deptColor}
+        open={!!viewingRankMembers}
+        onOpenChange={(open) => { if (!open) setViewingRankMembers(null); }}
+        onRemoveMember={(rosterId) => removeRankMemberMutation.mutate({ rosterId })}
+      />
     </div>
+  );
+}
+
+function RankMembersDialog({ rankId, code, deptColor, open, onOpenChange, onRemoveMember }: {
+  rankId: string | null;
+  code: string;
+  deptColor: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRemoveMember: (rosterId: string) => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["rankMembers", code, rankId],
+    queryFn: async () => {
+      const res = await fetch(`/api/departments/${code}/ranks/${rankId}/members`, { credentials: "include" });
+      if (!res.ok) return { members: [], rankName: "" };
+      return res.json() as Promise<{ members: Array<{ rosterId: string | null; userId: string; username: string; displayName: string; avatar: string | null; discordId: string; source: string; isActive: boolean }>; rankName: string }>;
+    },
+    enabled: open && !!rankId,
+  });
+
+  const members = data?.members || [];
+  const rankName = data?.rankName || "";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-zinc-900 border-white/10 max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle style={{ color: deptColor }}>Members — {rankName}</DialogTitle>
+          <DialogDescription>{members.length} member(s) assigned to this rank</DialogDescription>
+        </DialogHeader>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}
+          </div>
+        ) : members.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No members assigned to this rank.</p>
+        ) : (
+          <div className="space-y-2">
+            {members.map((member) => (
+              <div key={member.userId} className={`flex items-center justify-between gap-3 p-2.5 rounded-lg bg-zinc-800/40 ${!member.isActive ? "opacity-50" : ""}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                    <img
+                      src={member.avatar ? `https://cdn.discordapp.com/avatars/${member.discordId}/${member.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(member.discordId) % 5}.png`}
+                      alt={member.displayName}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{member.displayName}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {member.source === "manual" ? "Manual entry" : "Discord role"}
+                      {!member.isActive && " (deactivated)"}
+                    </p>
+                  </div>
+                </div>
+                {member.rosterId && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-red-400 hover:text-red-300 shrink-0"
+                    onClick={() => {
+                      if (confirm(`Remove ${member.displayName} from this rank?`)) {
+                        onRemoveMember(member.rosterId!);
+                      }
+                    }}
+                    title="Remove from rank"
+                    data-testid={`button-remove-rank-member-${member.discordId}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -21,6 +21,11 @@ function generateNextQid(existingQids: Set<string>): string {
   return `ACP99Z`;
 }
 
+const PARENT_DEPARTMENT_MAP: Record<string, string> = {
+  aos: "police",
+  sert: "ems",
+};
+
 async function isUserDepartmentLeadership(user: any, departmentCode: string): Promise<boolean> {
   const tier = user?.staffTier;
   if (tier && ["director", "executive", "manager"].includes(tier)) return true;
@@ -37,6 +42,11 @@ async function isUserDepartmentLeadership(user: any, departmentCode: string): Pr
       .filter((r: any) => r.isLeadership && r.discordRoleId)
       .map((r: any) => r.discordRoleId!);
     if (user.roles.some((role: string) => leadershipDiscordRoleIds.includes(role))) return true;
+  }
+  
+  const parentCode = PARENT_DEPARTMENT_MAP[departmentCode];
+  if (parentCode) {
+    return await isUserDepartmentLeadership(user, parentCode);
   }
   
   return false;
@@ -581,12 +591,15 @@ export async function registerRoutes(
       }
 
       let fireCommsRoleId: string | null = null;
+      let fireSeniorDispatcherRoleId: string | null = null;
       if (code === "fire") {
         const commsSetting = await storage.getAdminSetting("fire_comms_role_id");
         fireCommsRoleId = commsSetting?.value || null;
+        const sdSetting = await storage.getAdminSetting("fire_senior_dispatcher_role_id");
+        fireSeniorDispatcherRoleId = sdSetting?.value || null;
       }
 
-      res.json({ roster: autoRoster, ranks: departmentRanks, emsCsoRoleId, fireCommsRoleId });
+      res.json({ roster: autoRoster, ranks: departmentRanks, emsCsoRoleId, fireCommsRoleId, fireSeniorDispatcherRoleId });
     } catch (error) {
       console.error("Roster fetch error:", error);
       res.status(500).json({ error: "Failed to fetch roster" });
@@ -1964,6 +1977,29 @@ export async function registerRoutes(
       }
     }
 
+    // Check parent department leadership (e.g., Police leadership gets AOS access, EMS leadership gets SERT access)
+    const parentCode = PARENT_DEPARTMENT_MAP[department];
+    if (!isLeadership && parentCode) {
+      const parentRosterMember = await storage.getRosterMemberByUser(req.user!.id, parentCode);
+      if (parentRosterMember) {
+        const parentRank = await storage.getRank(parentRosterMember.rankId);
+        if (parentRank?.isLeadership) {
+          isLeadership = true;
+          hasAccess = true;
+        }
+      }
+      if (!isLeadership && req.user?.roles) {
+        const parentRanks = await storage.getRanksByDepartment(parentCode);
+        const parentLeadershipRoleIds = parentRanks
+          .filter(r => r.isLeadership && r.discordRoleId)
+          .map(r => r.discordRoleId!);
+        if (req.user.roles.some(role => parentLeadershipRoleIds.includes(role))) {
+          isLeadership = true;
+          hasAccess = true;
+        }
+      }
+    }
+
     const managedForms = await storage.getFormManagersByUser(req.user!.id);
     const deptForms = await storage.getApplicationFormsByDepartment(department);
     const managedFormIds = managedForms.filter(m => deptForms.some(f => f.id === m.formId)).map(m => m.formId);
@@ -2233,6 +2269,70 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/departments/:code/ranks/:rankId/members", isAuthenticated, async (req, res) => {
+    try {
+      const code = req.params.code as string;
+      const rankId = req.params.rankId as string;
+      
+      const isLeadership = await isUserDepartmentLeadership(req.user!, code);
+      if (!isLeadership && !req.user?.websiteRoles?.includes("admin")) {
+        return res.status(403).json({ error: "Leadership access required" });
+      }
+
+      const allRoster = await storage.getAllRosterByDepartment(code);
+      const manualMembers = allRoster.filter(m => m.rankId === rankId);
+
+      const allUsers = await storage.getAllUsers();
+      const deptRanks = await storage.getRanksByDepartment(code);
+      const rank = deptRanks.find(r => r.id === rankId);
+
+      const autoMembers: Array<{ userId: string; source: string }> = [];
+      if (rank?.discordRoleId) {
+        for (const user of allUsers) {
+          if (user.roles && user.roles.includes(rank.discordRoleId)) {
+            if (!manualMembers.some(m => m.userId === user.id)) {
+              autoMembers.push({ userId: user.id, source: "discord" });
+            }
+          }
+        }
+      }
+
+      const members = [
+        ...manualMembers.map(m => {
+          const user = allUsers.find(u => u.id === m.userId);
+          return {
+            rosterId: m.id,
+            userId: m.userId,
+            username: user?.username || "Unknown",
+            displayName: user?.displayName || user?.username || "Unknown",
+            avatar: user?.avatar || null,
+            discordId: user?.discordId || "",
+            source: "manual" as const,
+            isActive: m.isActive,
+          };
+        }),
+        ...autoMembers.map(a => {
+          const user = allUsers.find(u => u.id === a.userId);
+          return {
+            rosterId: null,
+            userId: a.userId,
+            username: user?.username || "Unknown",
+            displayName: user?.displayName || user?.username || "Unknown",
+            avatar: user?.avatar || null,
+            discordId: user?.discordId || "",
+            source: "discord" as const,
+            isActive: true,
+          };
+        }),
+      ];
+
+      res.json({ members, rankName: rank?.name || "Unknown" });
+    } catch (error) {
+      console.error("Rank members error:", error);
+      res.status(500).json({ error: "Failed to fetch rank members" });
+    }
+  });
+
   app.delete("/api/departments/:code/ranks/:rankId", isAuthenticated, async (req, res) => {
     try {
       const code = req.params.code as string;
@@ -2251,10 +2351,18 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Rank does not belong to this department" });
       }
 
-      const roster = await storage.getRosterByDepartment(code);
-      const membersUsingRank = roster.filter(m => m.rankId === rankId);
-      if (membersUsingRank.length > 0) {
-        return res.status(400).json({ error: `Cannot delete rank "${rank.name}" — ${membersUsingRank.length} roster member(s) are assigned to it. Reassign or remove them first.` });
+      const allRoster = await storage.getAllRosterByDepartment(code);
+      const manualMembersUsingRank = allRoster.filter(m => m.rankId === rankId);
+      
+      const allUsers = await storage.getAllUsers();
+      let discordMembersCount = 0;
+      if (rank.discordRoleId) {
+        discordMembersCount = allUsers.filter(u => u.roles && u.roles.includes(rank.discordRoleId!)).length;
+      }
+
+      const totalMembers = manualMembersUsingRank.length + discordMembersCount;
+      if (totalMembers > 0) {
+        return res.status(400).json({ error: `Cannot delete rank "${rank.name}" — ${totalMembers} member(s) are assigned to it. Remove them first.` });
       }
 
       await storage.deleteRank(rankId);
