@@ -927,7 +927,7 @@ function EmsRoster({ roster, allRanks, deptColor, csoRoleId }: { roster: RosterM
             style={{ gridTemplateColumns: "1fr auto auto auto" }}
           >
             <div>Name</div>
-            <div className="text-center px-2">PST</div>
+            <div className="text-center px-2">ATP</div>
             <div className="text-center px-2 hidden sm:block">Callsign</div>
             <div className="text-center px-2 hidden sm:block">CSO</div>
           </div>
@@ -1014,7 +1014,7 @@ function EmsLeadershipRow({ member, deptColor, index, csoRoleId }: { member: Ros
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {member.customAtp || member.rank?.name}
+            {member.customAtp || <span className="text-muted-foreground">-</span>}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -1036,7 +1036,7 @@ function EmsLeadershipRow({ member, deptColor, index, csoRoleId }: { member: Ros
           )}
         </div>
       </div>
-      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} departmentCode="ems" />
     </>
   );
 }
@@ -1065,7 +1065,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {member.customAtp || rank.name}
+            {member.customAtp || <span className="text-muted-foreground">-</span>}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -1087,7 +1087,7 @@ function EmsRosterRow({ member, rank, deptColor, csoRoleId }: { member: RosterMe
           )}
         </div>
       </div>
-      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} departmentCode="ems" />
     </>
   );
 }
@@ -1116,7 +1116,7 @@ function EmsAtpRow({ member, rank, deptColor, csoRoleId }: { member: RosterMembe
         </div>
         <div className="text-center px-2 shrink-0">
           <span className="text-xs font-medium whitespace-nowrap" style={{ color: deptColor }}>
-            {member.customAtp || rank.name}
+            {member.customAtp || <span className="text-muted-foreground">-</span>}
           </span>
         </div>
         <div className="text-center px-2 shrink-0 hidden sm:block">
@@ -1131,7 +1131,7 @@ function EmsAtpRow({ member, rank, deptColor, csoRoleId }: { member: RosterMembe
           )}
         </div>
       </div>
-      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} />
+      <PlayerCardDialog member={member} deptColor={deptColor} open={showCard} onOpenChange={setShowCard} departmentCode="ems" />
     </>
   );
 }
@@ -1174,7 +1174,7 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
   const canEditCallsign = !!isStaffLeader || isDeptLeadership;
   const showNotes = isPolice && (!!isStaffLeader || isDeptLeadership);
   const showDivision = isPolice && (!!isStaffDirectorOrExec || isDeptLeadership);
-  const canEditAtp = isEms && (!!isStaffLeader || isDeptLeadership);
+  const canEditAtp = isEms && (!!isStaffDirectorOrExec || isDeptLeadership);
 
   const { data: notesData, refetch: refetchNotes } = useQuery({
     queryKey: ["rosterNotes", member.id],
@@ -1210,7 +1210,7 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ customAtp: customAtp.trim() || null }),
+        body: JSON.stringify({ customAtp: customAtp.trim() || null, userId: member.userId, rankId: member.rankId }),
       });
       if (!res.ok) throw new Error("Failed");
     },
@@ -1366,7 +1366,7 @@ function PlayerCardDialog({ member, deptColor, open, onOpenChange, departmentCod
           </div>
         )}
 
-        {canEditAtp && !member.id.startsWith("auto-") && (
+        {canEditAtp && (
           <div className="mt-3 space-y-1.5">
             <Label className="text-xs text-muted-foreground">Custom ATP</Label>
             {editingAtp ? (

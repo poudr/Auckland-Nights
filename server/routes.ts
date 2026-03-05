@@ -1431,17 +1431,34 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const tier = user.staffTier;
-      const isStaffLeader = tier && ["director", "executive", "manager"].includes(tier);
+      const isStaffLeader = tier && ["director", "executive"].includes(tier);
       const isEmsLeadership = await isUserDepartmentLeadership(user, "ems");
       if (!isStaffLeader && !isEmsLeadership) {
-        return res.status(403).json({ error: "Only leadership can set custom ATP" });
+        return res.status(403).json({ error: "Only EMS leadership, Directors, or Executives can set custom ATP" });
       }
-      const member = await storage.getRosterMember(req.params.id);
+      const { customAtp, userId, rankId } = req.body;
+      const memberId = req.params.id;
+
+      if (memberId.startsWith("auto-") && userId && rankId) {
+        const existing = await storage.getRosterMemberByUser(userId, "ems");
+        if (existing) {
+          const updated = await storage.updateRosterMember(existing.id, { customAtp: customAtp || null });
+          return res.json({ success: true, member: updated });
+        }
+        const created = await storage.createRosterMember({
+          userId,
+          departmentCode: "ems",
+          rankId,
+          customAtp: customAtp || null,
+        });
+        return res.json({ success: true, member: created });
+      }
+
+      const member = await storage.getRosterMember(memberId);
       if (!member || member.departmentCode !== "ems") {
         return res.status(404).json({ error: "EMS roster member not found" });
       }
-      const { customAtp } = req.body;
-      const updated = await storage.updateRosterMember(req.params.id, { customAtp: customAtp || null });
+      const updated = await storage.updateRosterMember(memberId, { customAtp: customAtp || null });
       res.json({ success: true, member: updated });
     } catch (error) {
       console.error("Update custom ATP error:", error);
