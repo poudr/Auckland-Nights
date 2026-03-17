@@ -2034,7 +2034,7 @@ function MediaLibraryTab() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const uploadRes = await fetch("/api/uploads/file", { method: "POST", body: formData, credentials: "include" });
+      const uploadRes = await fetch("/api/uploads/file?keepName=true", { method: "POST", body: formData, credentials: "include" });
       if (!uploadRes.ok) {
         if (uploadRes.status === 413) throw new Error("File is too large. If using nginx, increase client_max_body_size.");
         const errData = await uploadRes.json().catch(() => ({}));

@@ -29,10 +29,15 @@ const diskStorage = multer.diskStorage({
     }
     cb(null, UPLOADS_DIR);
   },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = `${randomUUID()}${ext}`;
-    cb(null, name);
+  filename: (req, file, cb) => {
+    if (req.query.keepName === "true") {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+      cb(null, safeName);
+    } else {
+      const ext = path.extname(file.originalname);
+      const name = `${randomUUID()}${ext}`;
+      cb(null, name);
+    }
   },
 });
 
