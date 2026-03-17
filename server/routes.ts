@@ -8,6 +8,8 @@ import { STAFF_HIERARCHY, applicationForms } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import fs from "fs";
+import path from "path";
 
 function generateNextQid(existingQids: Set<string>): string {
   for (let num = 1; num <= 99; num++) {
@@ -28,7 +30,9 @@ const PARENT_DEPARTMENT_MAP: Record<string, string> = {
 
 async function isUserDepartmentLeadership(user: any, departmentCode: string): Promise<boolean> {
   const tier = user?.staffTier;
-  if (tier && ["director", "executive", "manager"].includes(tier)) return true;
+  if (tier === "director" || tier === "executive") return true;
+  const restrictedDepts = ["towing", "traffic"];
+  if (tier === "manager" && !restrictedDepts.includes(departmentCode)) return true;
   
   const rosterMember = await storage.getRosterMemberByUser(user.id, departmentCode);
   if (rosterMember) {
@@ -1679,6 +1683,7 @@ export async function registerRoutes(
     access: { settingKey: "staff_manage_access_control", defaultTier: "director" },
     seo: { settingKey: "staff_manage_seo", defaultTier: "executive" },
     audit: { settingKey: "staff_view_audit_log", defaultTier: "executive" },
+    media: { settingKey: "staff_manage_media", defaultTier: "executive" },
     settings: { settingKey: "staff_manage_settings", defaultTier: "director" },
   };
 
@@ -1981,10 +1986,18 @@ export async function registerRoutes(
     
     console.log(`[check-access] User: ${req.user?.username}, staffTier: ${staffTier}, department: ${department}`);
     
-    // Directors, Executives, and Managers automatically get access to ALL department portals with leadership
-    if (staffTier === "director" || staffTier === "executive" || staffTier === "manager") {
+    if (staffTier === "director" || staffTier === "executive") {
       console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
       return res.json({ hasAccess: true, department, isLeadership: true });
+    }
+    
+    if (staffTier === "manager") {
+      const restrictedDepts = ["towing", "traffic"];
+      if (!restrictedDepts.includes(department)) {
+        console.log(`[check-access] Granting leadership access to ${req.user?.username} (${staffTier})`);
+        return res.json({ hasAccess: true, department, isLeadership: true });
+      }
+      console.log(`[check-access] Manager ${req.user?.username} needs department-specific leadership for ${department}`);
     }
     
     // Check if user has department permission (from Discord role mappings)
@@ -2456,6 +2469,113 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete server update" });
+    }
+  });
+
+  // ============ MEDIA FILES ROUTES ============
+  app.get("/api/media", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const category = req.query.category as string | undefined;
+      const files = await storage.getMediaFiles(category);
+      res.json({ files });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch media files" });
+    }
+  });
+
+  app.get("/api/media/featured", async (_req, res) => {
+    try {
+      const files = await storage.getFeaturedMedia();
+      res.json({ files });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch featured media" });
+    }
+  });
+
+  app.post("/api/media", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const { category, title, fileName, originalName, objectPath, contentType, fileSize } = req.body;
+      if (!category || !fileName || !originalName || !objectPath) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      if (!["gallery", "music", "staff"].includes(category)) {
+        return res.status(400).json({ error: "Invalid category" });
+      }
+      const file = await storage.createMediaFile({
+        category,
+        title: title || null,
+        fileName,
+        originalName,
+        objectPath,
+        contentType: contentType || null,
+        fileSize: fileSize || null,
+        isFeatured: false,
+        uploadedBy: req.user!.id,
+      });
+      await logAuditEvent(req.user!.id, `Uploaded ${category} media`, "media", `File: ${originalName}`, file.id, "media");
+      res.json({ file });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create media file" });
+    }
+  });
+
+  app.patch("/api/media/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const { title, isFeatured } = req.body;
+      if (isFeatured === true) {
+        const existing = await storage.getMediaFile(req.params.id as string);
+        if (!existing) return res.status(404).json({ error: "Media file not found" });
+        if (existing.category !== "gallery" || !existing.contentType?.startsWith("image/")) {
+          return res.status(400).json({ error: "Only gallery images can be featured" });
+        }
+      }
+      const updates: any = {};
+      if (title !== undefined) updates.title = title;
+      if (isFeatured !== undefined) updates.isFeatured = isFeatured;
+      const file = await storage.updateMediaFile(req.params.id as string, updates);
+      if (!file) {
+        return res.status(404).json({ error: "Media file not found" });
+      }
+      res.json({ file });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update media file" });
+    }
+  });
+
+  app.delete("/api/media/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tier = req.user?.staffTier;
+      if (!tier || !["executive", "director"].includes(tier)) {
+        return res.status(403).json({ error: "Executive or Director required" });
+      }
+      const file = await storage.getMediaFile(req.params.id as string);
+      if (!file) {
+        return res.status(404).json({ error: "Media file not found" });
+      }
+      const fileName = file.objectPath.replace("/objects/", "");
+      const filePath = path.join(process.cwd(), "uploads", fileName);
+      try {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {
+        console.error("Failed to delete physical file:", e);
+      }
+      await storage.deleteMediaFile(req.params.id as string);
+      await logAuditEvent(req.user!.id, `Deleted ${file.category} media`, "media", `File: ${file.originalName}`, file.id, "media");
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete media file" });
     }
   });
 

@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
-import { motion } from "framer-motion";
-import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight, Megaphone, Plus, Trash2, Calendar, ImageIcon, X, Upload, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Users, Shield, MessageSquareDiff as DiscordIcon, Terminal, Code, ArrowRight, Megaphone, Plus, Trash2, Calendar, ImageIcon, X, Upload, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -273,6 +273,124 @@ function ServerUpdatesSection({ user }: { user: any }) {
   );
 }
 
+interface FeaturedPhoto {
+  id: string;
+  title: string | null;
+  objectPath: string;
+  originalName: string;
+}
+
+function FeaturedPhotosSection() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const { data: featuredData } = useQuery({
+    queryKey: ["featured-photos"],
+    queryFn: async () => {
+      const res = await fetch("/api/media/featured");
+      if (!res.ok) return { files: [] };
+      return res.json() as Promise<{ files: FeaturedPhoto[] }>;
+    },
+  });
+
+  const photos = featuredData?.files || [];
+
+  const goNext = useCallback(() => {
+    if (photos.length > 0) {
+      setCurrentIndex((prev) => (prev + 1) % photos.length);
+    }
+  }, [photos.length]);
+
+  const goPrev = useCallback(() => {
+    if (photos.length > 0) {
+      setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
+    }
+  }, [photos.length]);
+
+  useEffect(() => {
+    if (photos.length <= 1) return;
+    const timer = setInterval(goNext, 5000);
+    return () => clearInterval(timer);
+  }, [photos.length, goNext]);
+
+  useEffect(() => {
+    if (currentIndex >= photos.length && photos.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [photos.length, currentIndex]);
+
+  if (photos.length === 0) return null;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.6 }}
+    >
+      <h2 className="text-3xl font-bold mb-8 font-display italic tracking-tight" data-testid="text-featured-photos-title">
+        FEATURED PHOTOS
+      </h2>
+      <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/60">
+        <div className="relative aspect-[16/7] w-full">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={photos[currentIndex]?.id}
+              src={photos[currentIndex]?.objectPath}
+              alt={photos[currentIndex]?.title || photos[currentIndex]?.originalName || "Featured photo"}
+              className="absolute inset-0 w-full h-full object-cover"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              data-testid={`img-featured-photo-${currentIndex}`}
+            />
+          </AnimatePresence>
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+          {photos[currentIndex]?.title && (
+            <div className="absolute bottom-6 left-6 right-6">
+              <p className="text-white text-xl font-bold drop-shadow-lg" data-testid="text-featured-photo-title">
+                {photos[currentIndex].title}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {photos.length > 1 && (
+          <>
+            <button
+              onClick={goPrev}
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors"
+              data-testid="button-featured-prev"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={goNext}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors"
+              data-testid="button-featured-next"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+              {photos.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentIndex(i)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${i === currentIndex ? "bg-orange-500 scale-110" : "bg-white/40 hover:bg-white/60"}`}
+                  data-testid={`button-featured-dot-${i}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </motion.section>
+  );
+}
+
 export default function Home() {
   const { data: user } = useUser();
   const { data: aboutDescription, isLoading: aboutLoading } = useQuery({
@@ -366,6 +484,9 @@ export default function Home() {
             </Card>
           </div>
         )}
+
+        {/* Featured Photos */}
+        <FeaturedPhotosSection />
 
         {/* Server Updates */}
         <ServerUpdatesSection user={user} />

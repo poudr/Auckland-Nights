@@ -17,7 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Settings, Users, Link2, RefreshCw, Shield, Trash2, Plus, ChevronLeft, ChevronDown, Check, 
   UserCog, Tag, Cog, Edit, X, ChevronRight, ArrowUp, ArrowDown,
-  LayoutDashboard, Lock, Globe, ClipboardList, Activity, FileText, Eye, Upload, Image
+  LayoutDashboard, Lock, Globe, ClipboardList, Activity, FileText, Eye, Upload, Image,
+  Music, Film, Copy, Star, StarOff
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useUser, useAuthStatus, hasPermission, getAvatarUrl } from "@/lib/auth";
@@ -73,6 +74,7 @@ const SIDEBAR_ITEMS = [
   { id: "access", label: "Access Control", icon: Lock },
   { id: "seo", label: "SEO Management", icon: Globe },
   { id: "audit", label: "Audit Log", icon: ClipboardList },
+  { id: "media", label: "Media Library", icon: Film },
   { id: "settings", label: "Settings", icon: Cog },
 ];
 
@@ -316,6 +318,7 @@ export default function Admin() {
             {activeTab === "access" && tabAccess.access !== false && <AccessControlTab />}
             {activeTab === "seo" && tabAccess.seo !== false && <SeoManagementTab />}
             {activeTab === "audit" && tabAccess.audit !== false && <AuditLogTab />}
+            {activeTab === "media" && tabAccess.media !== false && <MediaLibraryTab />}
             {activeTab === "settings" && tabAccess.settings !== false && <SettingsTab />}
             {tabAccess[activeTab] === false && (
               <div className="text-center py-20">
@@ -1991,6 +1994,272 @@ async function saveSetting(key: string, value: string): Promise<void> {
     credentials: "include",
     body: JSON.stringify({ key, value }),
   });
+}
+
+interface MediaFileData {
+  id: string;
+  category: string;
+  title: string | null;
+  fileName: string;
+  originalName: string;
+  objectPath: string;
+  contentType: string | null;
+  fileSize: number | null;
+  isFeatured: boolean | null;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+function MediaLibraryTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [activeCategory, setActiveCategory] = useState<"gallery" | "music" | "staff">("gallery");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: mediaData, isLoading } = useQuery({
+    queryKey: ["media", activeCategory],
+    queryFn: async () => {
+      const res = await fetch(`/api/media?category=${activeCategory}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch media");
+      return res.json() as Promise<{ files: MediaFileData[] }>;
+    },
+  });
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch("/api/uploads/file", { method: "POST", body: formData, credentials: "include" });
+      if (!uploadRes.ok) {
+        if (uploadRes.status === 413) throw new Error("File is too large. If using nginx, increase client_max_body_size.");
+        const errData = await uploadRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed (${uploadRes.status})`);
+      }
+      const uploadData = await uploadRes.json();
+
+      const createRes = await fetch("/api/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          category: activeCategory,
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          fileName: uploadData.objectPath.split("/").pop(),
+          originalName: file.name,
+          objectPath: uploadData.objectPath,
+          contentType: file.type,
+          fileSize: file.size,
+        }),
+      });
+      if (!createRes.ok) {
+        const errData = await createRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save media");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["media", activeCategory] });
+      toast({ title: "File uploaded successfully" });
+    } catch (err: any) {
+      toast({ title: "Upload Failed", description: err?.message || "Could not upload file", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const toggleFeatured = async (id: string, isFeatured: boolean) => {
+    try {
+      const res = await fetch(`/api/media/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ isFeatured: !isFeatured }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      queryClient.invalidateQueries({ queryKey: ["media", activeCategory] });
+      toast({ title: !isFeatured ? "Added to featured photos" : "Removed from featured photos" });
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
+  };
+
+  const deleteFile = async (id: string) => {
+    try {
+      const res = await fetch(`/api/media/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete");
+      queryClient.invalidateQueries({ queryKey: ["media", activeCategory] });
+      toast({ title: "File deleted" });
+    } catch {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const copyUrl = (objectPath: string) => {
+    const fullUrl = `${window.location.origin}${objectPath}`;
+    navigator.clipboard.writeText(fullUrl);
+    toast({ title: "URL copied to clipboard" });
+  };
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return "Unknown";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const categories = [
+    { id: "gallery" as const, label: "Gallery", icon: Image, description: "Photos and videos for loading screens" },
+    { id: "music" as const, label: "Music", icon: Music, description: "Audio files for loading screens" },
+    { id: "staff" as const, label: "Staff", icon: Users, description: "Staff-related media files" },
+  ];
+
+  const files = mediaData?.files || [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold font-heading text-foreground">Media Library</h2>
+        <p className="text-muted-foreground mt-1">Upload and manage media files for loading screens. Only Executive and Director can manage media.</p>
+      </div>
+
+      <div className="flex gap-2">
+        {categories.map((cat) => (
+          <Button
+            key={cat.id}
+            variant={activeCategory === cat.id ? "default" : "outline"}
+            onClick={() => setActiveCategory(cat.id)}
+            className={activeCategory === cat.id ? "bg-orange-600 hover:bg-orange-700" : ""}
+            data-testid={`button-category-${cat.id}`}
+          >
+            <cat.icon className="w-4 h-4 mr-2" />
+            {cat.label}
+          </Button>
+        ))}
+      </div>
+
+      <Card className="bg-card border-border">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="font-heading">{categories.find(c => c.id === activeCategory)?.label}</CardTitle>
+            <CardDescription>{categories.find(c => c.id === activeCategory)?.description}</CardDescription>
+          </div>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleUpload}
+              data-testid="input-media-upload"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="bg-orange-600 hover:bg-orange-700"
+              data-testid="button-upload-media"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {uploading ? "Uploading..." : "Upload File"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : files.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Film className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No files in this category yet</p>
+              <p className="text-sm mt-1">Upload files using the button above</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {files.map((file) => {
+                const isImage = file.contentType?.startsWith("image/");
+                const isAudio = file.contentType?.startsWith("audio/");
+                const isVideo = file.contentType?.startsWith("video/");
+                return (
+                  <div
+                    key={file.id}
+                    className="flex items-center gap-4 p-3 rounded-lg border border-border bg-background hover:bg-muted/50 transition-colors"
+                    data-testid={`media-item-${file.id}`}
+                  >
+                    {isImage ? (
+                      <img src={file.objectPath} alt={file.title || file.originalName} className="w-16 h-16 object-cover rounded-md border border-border" />
+                    ) : isAudio ? (
+                      <div className="w-16 h-16 flex items-center justify-center rounded-md border border-border bg-muted">
+                        <Music className="w-6 h-6 text-orange-500" />
+                      </div>
+                    ) : isVideo ? (
+                      <div className="w-16 h-16 flex items-center justify-center rounded-md border border-border bg-muted">
+                        <Film className="w-6 h-6 text-orange-500" />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 flex items-center justify-center rounded-md border border-border bg-muted">
+                        <FileText className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{file.title || file.originalName}</p>
+                      <p className="text-xs text-muted-foreground">{file.originalName} · {formatFileSize(file.fileSize)}</p>
+                      {file.isFeatured && activeCategory === "gallery" && (
+                        <Badge className="mt-1 bg-orange-600/20 text-orange-400 border-orange-600/30 text-xs">Featured</Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {activeCategory === "gallery" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleFeatured(file.id, !!file.isFeatured)}
+                          title={file.isFeatured ? "Remove from featured" : "Add to featured"}
+                          data-testid={`button-toggle-featured-${file.id}`}
+                        >
+                          {file.isFeatured ? <Star className="w-4 h-4 text-orange-500 fill-orange-500" /> : <StarOff className="w-4 h-4 text-muted-foreground" />}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => copyUrl(file.objectPath)}
+                        title="Copy direct URL"
+                        data-testid={`button-copy-url-${file.id}`}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <a href={file.objectPath} target="_blank" rel="noopener noreferrer">
+                        <Button variant="ghost" size="icon" title="View file" data-testid={`button-view-${file.id}`}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteFile(file.id)}
+                        className="text-red-400 hover:text-red-300"
+                        title="Delete file"
+                        data-testid={`button-delete-media-${file.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function SettingsTab() {

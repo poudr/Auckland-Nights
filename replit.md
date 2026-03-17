@@ -29,11 +29,13 @@ The website features a dark theme with orange (`#f97316`) accents, using Oxanium
 
 **Technical Implementations:**
 - **Authentication:** Discord OAuth for user login and automatic role syncing based on `DISCORD_GUILD_ID`.
-- **Role-Based Access Control (RBAC):** Granular permissions managed through `roleMappings` table, dictating access to department portals, admin features, and specific actions. Directors/Executives have full access.
+- **Role-Based Access Control (RBAC):** Granular permissions managed through `roleMappings` table, dictating access to department portals, admin features, and specific actions. Directors/Executives have full access. Managers have leadership for all departments except Towing and Traffic Control (which require actual department leadership roles).
 - **Department Management:** Dedicated portals for Police, Fire, EMS, AOS, SERT, Auckland Traffic Control, and Auckland Towing, each with customizable rosters, SOPs, and application forms.
 - **Application System:** Supports both department whitelist applications and general support forms (e.g., Ban Appeals, Staff Apps). Features a form builder, submission threads, notifications, and leadership approval workflows with automatic Discord role assignment.
-- **Admin Panel:** Centralized dashboard for user management, role mapping configuration, bulk role syncing, audit logging, and SEO management.
-- **File Uploads:** Local filesystem-based storage (`multer`) for server updates and application message attachments, saving to the `uploads/` directory.
+- **Admin Panel:** Centralized dashboard for user management, role mapping configuration, bulk role syncing, audit logging, SEO management, and media library.
+- **Media Library:** Executive/Director-only media management with three categories (Gallery, Music, Staff). Supports any file type upload with direct URL copy for loading screen integration. Gallery items can be marked as "Featured" to appear in the home page carousel.
+- **Featured Photos:** Animated carousel on the home page showing gallery items marked as featured, with auto-rotation and navigation controls.
+- **File Uploads:** Local filesystem-based storage (`multer`) for server updates, application message attachments, and media files, saving to the `uploads/` directory.
 - **Roster System:** Dynamic display of staff members, including custom ATP text, callsigns, QIDs, and division assignments (for Police). Player profiles are accessible.
 - **SOPs and FAQs:** Department-specific Standard Operating Procedures and a general FAQ system with editable, categorizable entries.
 - **Notifications:** In-app notifications with deep-linking to relevant application threads and configurable recipients.

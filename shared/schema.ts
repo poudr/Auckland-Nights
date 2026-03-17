@@ -492,6 +492,28 @@ export const insertRosterNoteSchema = createInsertSchema(rosterNotes).omit({
 export type InsertRosterNote = z.infer<typeof insertRosterNoteSchema>;
 export type RosterNote = typeof rosterNotes.$inferSelect;
 
+// ============ MEDIA FILES ============
+export const mediaFiles = pgTable("media_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: text("category").notNull(), // gallery, music, staff
+  title: text("title"),
+  fileName: text("file_name").notNull(),
+  originalName: text("original_name").notNull(),
+  objectPath: text("object_path").notNull(),
+  contentType: text("content_type"),
+  fileSize: integer("file_size"),
+  isFeatured: boolean("is_featured").default(false),
+  uploadedBy: varchar("uploaded_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMediaFileSchema = createInsertSchema(mediaFiles).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertMediaFile = z.infer<typeof insertMediaFileSchema>;
+export type MediaFile = typeof mediaFiles.$inferSelect;
+
 // ============ STAFF HIERARCHY (for Meet the Team) ============
 export const STAFF_HIERARCHY = [
   "director",

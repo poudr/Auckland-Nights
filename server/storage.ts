@@ -24,8 +24,9 @@ import {
   type AuditLog, type InsertAuditLog,
   type FormManager, type InsertFormManager,
   type RosterNote, type InsertRosterNote,
+  type MediaFile, type InsertMediaFile,
   users, departments, ranks, rosterMembers, applicationForms, applicationQuestions, applicationSubmissions, applicationMessages, notifications, sops, roleMappings, adminSettings, menuItems, websiteRoles, userRoleAssignments, aosSquads,
-  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs, formManagers, rosterNotes
+  serverUpdates, supportForms, supportQuestions, supportSubmissions, supportMessages, supportFaqs, auditLogs, formManagers, rosterNotes, mediaFiles
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
@@ -190,6 +191,14 @@ export interface IStorage {
   addFormManager(manager: InsertFormManager): Promise<FormManager>;
   removeFormManager(formId: string, userId: string): Promise<void>;
   isFormManager(formId: string, userId: string): Promise<boolean>;
+
+  // Media Files
+  getMediaFiles(category?: string): Promise<MediaFile[]>;
+  getMediaFile(id: string): Promise<MediaFile | undefined>;
+  getFeaturedMedia(): Promise<MediaFile[]>;
+  createMediaFile(file: InsertMediaFile): Promise<MediaFile>;
+  updateMediaFile(id: string, updates: Partial<InsertMediaFile>): Promise<MediaFile | undefined>;
+  deleteMediaFile(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -810,6 +819,39 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRosterNote(id: string): Promise<void> {
     await db.delete(rosterNotes).where(eq(rosterNotes.id, id));
+  }
+
+  // ============ MEDIA FILES ============
+  async getMediaFiles(category?: string): Promise<MediaFile[]> {
+    if (category) {
+      return await db.select().from(mediaFiles).where(eq(mediaFiles.category, category)).orderBy(desc(mediaFiles.createdAt));
+    }
+    return await db.select().from(mediaFiles).orderBy(desc(mediaFiles.createdAt));
+  }
+
+  async getMediaFile(id: string): Promise<MediaFile | undefined> {
+    const [file] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, id));
+    return file;
+  }
+
+  async getFeaturedMedia(): Promise<MediaFile[]> {
+    return await db.select().from(mediaFiles)
+      .where(and(eq(mediaFiles.category, "gallery"), eq(mediaFiles.isFeatured, true)))
+      .orderBy(desc(mediaFiles.createdAt));
+  }
+
+  async createMediaFile(file: InsertMediaFile): Promise<MediaFile> {
+    const [created] = await db.insert(mediaFiles).values(file).returning();
+    return created;
+  }
+
+  async updateMediaFile(id: string, updates: Partial<InsertMediaFile>): Promise<MediaFile | undefined> {
+    const [updated] = await db.update(mediaFiles).set(updates).where(eq(mediaFiles.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMediaFile(id: string): Promise<void> {
+    await db.delete(mediaFiles).where(eq(mediaFiles.id, id));
   }
 }
 
