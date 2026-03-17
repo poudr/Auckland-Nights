@@ -2015,6 +2015,9 @@ function MediaLibraryTab() {
   const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState<"gallery" | "music" | "staff">("gallery");
   const [uploading, setUploading] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadComment, setUploadComment] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: mediaData, isLoading } = useQuery({
@@ -2026,14 +2029,22 @@ function MediaLibraryTab() {
     },
   });
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPendingFile(file);
+    setUploadComment("");
+    setShowUploadDialog(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleUploadConfirm = async () => {
+    if (!pendingFile) return;
 
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", pendingFile);
       const uploadRes = await fetch("/api/uploads/file?keepName=true", { method: "POST", body: formData, credentials: "include" });
       if (!uploadRes.ok) {
         if (uploadRes.status === 413) throw new Error("File is too large. If using nginx, increase client_max_body_size.");
@@ -2048,12 +2059,12 @@ function MediaLibraryTab() {
         credentials: "include",
         body: JSON.stringify({
           category: activeCategory,
-          title: file.name.replace(/\.[^/.]+$/, ""),
+          title: uploadComment.trim() || pendingFile.name.replace(/\.[^/.]+$/, ""),
           fileName: uploadData.objectPath.split("/").pop(),
-          originalName: file.name,
+          originalName: pendingFile.name,
           objectPath: uploadData.objectPath,
-          contentType: file.type,
-          fileSize: file.size,
+          contentType: pendingFile.type,
+          fileSize: pendingFile.size,
         }),
       });
       if (!createRes.ok) {
@@ -2063,11 +2074,13 @@ function MediaLibraryTab() {
 
       queryClient.invalidateQueries({ queryKey: ["media", activeCategory] });
       toast({ title: "File uploaded successfully" });
+      setShowUploadDialog(false);
+      setPendingFile(null);
+      setUploadComment("");
     } catch (err: any) {
       toast({ title: "Upload Failed", description: err?.message || "Could not upload file", variant: "destructive" });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -2152,7 +2165,7 @@ function MediaLibraryTab() {
               ref={fileInputRef}
               type="file"
               className="hidden"
-              onChange={handleUpload}
+              onChange={handleFileSelect}
               data-testid="input-media-upload"
             />
             <Button
@@ -2162,10 +2175,41 @@ function MediaLibraryTab() {
               data-testid="button-upload-media"
             >
               <Upload className="w-4 h-4 mr-2" />
-              {uploading ? "Uploading..." : "Upload File"}
+              Upload File
             </Button>
           </div>
         </CardHeader>
+
+        <Dialog open={showUploadDialog} onOpenChange={(open) => { if (!uploading) { setShowUploadDialog(open); if (!open) { setPendingFile(null); setUploadComment(""); } } }}>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="font-heading">Upload File</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {pendingFile && <span>File: <strong>{pendingFile.name}</strong></span>}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="upload-comment">Comment (optional)</Label>
+                <Input
+                  id="upload-comment"
+                  placeholder="Add a description or note..."
+                  value={uploadComment}
+                  onChange={(e) => setUploadComment(e.target.value)}
+                  data-testid="input-upload-comment"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setShowUploadDialog(false); setPendingFile(null); setUploadComment(""); }} disabled={uploading} data-testid="button-cancel-upload">
+                  Cancel
+                </Button>
+                <Button onClick={handleUploadConfirm} disabled={uploading} className="bg-orange-600 hover:bg-orange-700" data-testid="button-confirm-upload">
+                  {uploading ? "Uploading..." : "Upload"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
         <CardContent>
           {isLoading ? (
             <div className="space-y-3">
